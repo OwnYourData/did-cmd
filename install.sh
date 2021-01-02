@@ -13,8 +13,7 @@ if ! hash ruby > /dev/null 2>&1; then
 fi
 
 mkdir -p ~/bin
-wget https://raw.githubusercontent.com/OwnYourData/did-cmd/master/oydid.rb -O ~/bin
-mv ~/bin/oydid.rb ~/bin/oydid
+wget https://raw.githubusercontent.com/OwnYourData/did-cmd/main/oydid.rb -O ~/bin/oydid
 chmod +x ~/bin/oydid
 
-# sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/master/install.sh | sh"
+# sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
