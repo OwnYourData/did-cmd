@@ -8,9 +8,20 @@ Run the following command to copy `oydid.rb` into `~/bin/oydid` (requires Ruby 2
 sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
 ```
 
+### Example
+create the most simple DID:
+```
+echo '{"hello":"world"}' | oydid create
+```
+
+read the information:
+```
+oydid read {use output from above did:oyd:...}
+```
+
 ## Further Resources
 To host DIDs yourself you can use the `oydid/did-base` image on Dockerhub: https://hub.docker.com/r/oydid/did-base    
-API documentation is available here: https://api-docs.ownyourdata.eu/oydid    
+API documentation is available here: https://api-docs.ownyourdata.eu/oydid/    
 
 &nbsp;    
 
