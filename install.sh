@@ -8,7 +8,7 @@ if ! hash wget > /dev/null 2>&1; then
 fi
 
 if ! hash ruby > /dev/null 2>&1; then
-    echo "wget is required for download. Install wget and try again."
+    echo "ruby is required for execution. Install ruby and try again."
     exit 1
 fi
 
@@ -16,4 +16,7 @@ mkdir -p ~/bin
 wget https://raw.githubusercontent.com/OwnYourData/did-cmd/main/oydid.rb -O ~/bin/oydid
 chmod +x ~/bin/oydid
 
-# sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
+if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
+  export PATH="$PATH:$HOME/bin"
+  echo "consider adding ~/bin to your PATH"
+fi
