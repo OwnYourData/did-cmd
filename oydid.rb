@@ -309,8 +309,16 @@ def write_did(content, did, mode, options)
     if mode == "create"
         first_id = 1
         operation_mode = 2 # CREATE
-        privateKey = Ed25519::SigningKey.generate
-        revocationKey = Ed25519::SigningKey.generate
+        if options[:doc_key].nil?
+            privateKey = Ed25519::SigningKey.generate
+        else
+            privateKey = get_key(options[:doc_key].to_s, "sign")
+        end
+        if options[:doc_key].nil?
+            revocationKey = Ed25519::SigningKey.generate
+        else
+            revocationKey = get_key(options[:rev_key].to_s, "sign")
+        end
     else # mode == "update"  => read information
         did_info = resolve_did(did, options)
         if did_info["error"] != 0
@@ -353,7 +361,12 @@ def write_did(content, did, mode, options)
     subDid = {"doc": did_doc, "key": did_key}.to_json
     subDidHash = oyd_hash(subDid)
     signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
-    r1 = { "ts": Time.now.to_i,
+    if options[:ts].nil?
+        ts = Time.now.to_i
+    else
+        ts = options[:ts]
+    end
+    r1 = { "ts": ts,
            "op": 1, # REVOKE
            "doc": subDidHash,
            "sig": signedSubDidHash }.transform_keys(&:to_s)
@@ -367,7 +380,12 @@ def write_did(content, did, mode, options)
     if !doc_location.nil?
         l2_doc += LOCATION_PREFIX + doc_location.to_s
     end    
-    l2 = { "ts": Time.now.to_i,
+    if options[:ts].nil?
+        ts = Time.now.to_i
+    else
+        ts = options[:ts]
+    end
+    l2 = { "ts": ts,
            "op": 0, # TERMINATE
            "doc": l2_doc,
            "sig": oyd_encode(privateKey.sign(l2_doc)),
@@ -387,7 +405,12 @@ def write_did(content, did, mode, options)
     if !doc_location.nil?
         l1_doc += LOCATION_PREFIX + doc_location.to_s
     end
-    l1 = { "ts": Time.now.to_i,
+    if options[:ts].nil?
+        ts = Time.now.to_i
+    else
+        ts = options[:ts]
+    end
+    l1 = { "ts": ts,
            "op": operation_mode, # CREATE
            "doc": l1_doc,
            "sig": oyd_encode(privateKey.sign(l1_doc)),
@@ -456,6 +479,15 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("-t","--trace","show trace information when reading DID") do |trc|
     options[:trace] = true
+  end
+  opt.on("--doc-key DOCUMENT-KEY") do |dk|
+    options[:doc_key] = dk
+  end
+  opt.on("--rev-key REVOCATION-KEY") do |rk|
+    options[:rev_key] = rk
+  end
+  opt.on("--ts TIMESTAMP") do |ts|
+    options[:ts] = ts.to_i
   end
 end
 opt_parser.parse!
@@ -530,5 +562,6 @@ else
     puts "options:"
     puts "  --doc-key   - filename with Base58 encoded private key for signing documents"
     puts "  --rev-key   - filename with Base58 encoded private key for signing a revocation"
+    puts "  --timestamp - timestamp to be used (should be only used for testing)"
     puts "  --show-hash - for log output additionally show hash value of each entry"
 end
