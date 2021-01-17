@@ -342,9 +342,35 @@ def write_did(content, did, mode, options)
         operation_mode = 3 # UPDATE
         old_log = did_info["log"]
 
-        privateKey = get_key(did10 + "_private_key.b58", "sign")
-        revocationKey = get_key(did10 + "_revocation_key.b58", "sign")
-        revocationLog = get_file(did10 + "_revocation.json")
+        if options[:doc_key].nil?
+            privateKey = get_key(did10 + "_private_key.b58", "sign")
+        else
+            privateKey = get_key(options[:doc_key].to_s, "sign")
+        end
+        if options[:rev_key].nil?
+            revocationKey = get_key(did10 + "_revocation_key.b58", "sign")
+            revocationLog = get_file(did10 + "_revocation.json")
+        else
+            revocationKey = get_key(options[:rev_key].to_s, "sign")
+            # re-build revocation document
+            did_doc = did_info["doc"]["doc"]
+            publicKey = privateKey.verify_key
+            pubRevoKey = revocationKey.verify_key
+            did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
+            subDid = {"doc": did_doc, "key": did_key}.to_json
+            subDidHash = oyd_hash(subDid)
+            signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
+            if options[:ts].nil?
+                ts = Time.now.to_i
+            else
+                ts = options[:ts]
+            end
+            revocationLog = { 
+                "ts": ts,
+                "op": 1, # REVOKE
+                "doc": subDidHash,
+                "sig": signedSubDidHash }.transform_keys(&:to_s).to_json
+        end
         revoc_log = JSON.parse(revocationLog)
         revoc_log["previous"] = [
             oyd_hash(old_log[did_info["doc_log_id"].to_i - 1].to_json), 
