@@ -248,7 +248,6 @@ def resolve_did(did, options)
             did_location = tmp[1]
         end
     end
-
     if did_location == ""
         did_location = "https://oydid.ownyourdata.eu"
     end

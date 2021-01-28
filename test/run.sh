@@ -60,4 +60,15 @@ rm tmp.doc
 $OYDIDCMD delete did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2
 $OYDIDCMD delete 57c9p6AGUzsqGcBb1AuZS5mEDUqDSVfKV2QnuG9HjwKB --doc-pwd pwd1 --rev-pwd pwd2
 
+# test writing to non-default location
+echo '{"hello": "world6"}' | $OYDIDCMD create -l https://did2.data-container.net --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839947
+$OYDIDCMD read "did:oyd:fUozLeLj2xa4rjY9CCUJWe78JFFWCa2Xvkf1aAusHdXE;https://did2.data-container.net" > tmp.doc
+if ! cmp -s tmp.doc c1/did2.doc ; then
+	echo "writing to non-default location failed"
+	exit 1
+fi
+rm tmp.doc
+$OYDIDCMD delete "did:oyd:fUozLeLj2xa4rjY9CCUJWe78JFFWCa2Xvkf1aAusHdXE;https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2
+
+
 echo "tests finished successfully"
