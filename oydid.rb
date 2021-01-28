@@ -297,6 +297,55 @@ def resolve_did(did, options)
     return currentDID
 end
 
+def delete_did(did, options)
+    doc_location = options[:doc_location]
+    if doc_location.to_s == ""
+        if did.include?(LOCATION_PREFIX)
+            hash_split = did.split(LOCATION_PREFIX)
+            did = hash_split[0]
+            doc_location = hash_split[1]
+        end
+    end
+    if doc_location.to_s == ""
+        doc_location = "https://oydid.ownyourdata.eu"
+    end
+    did = did.delete_prefix("did:oyd:")
+
+    if options[:doc_key].nil?
+        if options[:doc_pwd].nil?
+            puts "Error: missing document key"
+            exit 1
+        else
+            privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
+        end
+    else
+        privateKey = get_key(options[:doc_key].to_s, "sign")
+    end
+    if options[:rev_key].nil?
+        if options[:rev_pwd].nil?
+            puts "Error: missing revocation key"
+            exit 1
+        else
+            revocationKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:rev_pwd].to_s))
+        end
+    else
+        revocationKey = get_key(options[:rev_key].to_s, "sign")
+    end
+
+    did_data = {
+        "dockey": Base58.binary_to_base58(privateKey.to_bytes),
+        "revkey": Base58.binary_to_base58(revocationKey.to_bytes)
+    }
+    oydid_url = doc_location.to_s + "/doc/" + did.to_s
+    retVal = HTTParty.delete(oydid_url,
+        headers: { 'Content-Type' => 'application/json' },
+        body: did_data.to_json )
+    if retVal.code != 200
+        puts "Error: " + retVal.parsed_response["error"].to_s rescue ""
+        exit 1
+    end
+end
+
 def write_did(content, did, mode, options)
     # generate did_doc and did_key
     did_doc = JSON.parse(content.join("")) rescue {}
@@ -305,17 +354,31 @@ def write_did(content, did, mode, options)
     revoc_log = nil
     old_log = nil
     doc_location = options[:doc_location]
+    if options[:ts].nil?
+        ts = Time.now.to_i
+    else
+        ts = options[:ts]
+    end
+
 
     if mode == "create"
         first_id = 1
         operation_mode = 2 # CREATE
         if options[:doc_key].nil?
-            privateKey = Ed25519::SigningKey.generate
+            if options[:doc_pwd].nil?
+                privateKey = Ed25519::SigningKey.generate
+            else
+                privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
+            end
         else
             privateKey = get_key(options[:doc_key].to_s, "sign")
         end
-        if options[:doc_key].nil?
-            revocationKey = Ed25519::SigningKey.generate
+        if options[:rev_key].nil?
+            if options[:rev_pwd].nil?
+                revocationKey = Ed25519::SigningKey.generate
+            else
+                revocationKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:rev_pwd].to_s))
+            end
         else
             revocationKey = get_key(options[:rev_key].to_s, "sign")
         end
@@ -343,30 +406,34 @@ def write_did(content, did, mode, options)
         old_log = did_info["log"]
 
         if options[:doc_key].nil?
-            privateKey = get_key(did10 + "_private_key.b58", "sign")
+            if options[:doc_pwd].nil?
+                privateKey = get_key(did10 + "_private_key.b58", "sign")
+            else
+                privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
+            end
         else
             privateKey = get_key(options[:doc_key].to_s, "sign")
         end
-        if options[:rev_key].nil?
+        if options[:rev_key].nil? && options[:rev_pwd].nil?
             revocationKey = get_key(did10 + "_revocation_key.b58", "sign")
             revocationLog = get_file(did10 + "_revocation.json")
         else
-            revocationKey = get_key(options[:rev_key].to_s, "sign")
+            if options[:rev_pwd].nil?
+                revocationKey = get_key(options[:rev_key].to_s, "sign")
+            else
+                revocationKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:rev_pwd].to_s))
+            end
             # re-build revocation document
-            did_doc = did_info["doc"]["doc"]
+            did_old_doc = did_info["doc"]["doc"]
+            ts_old = did_info["log"].last["ts"]
             publicKey = privateKey.verify_key
             pubRevoKey = revocationKey.verify_key
             did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
-            subDid = {"doc": did_doc, "key": did_key}.to_json
+            subDid = {"doc": did_old_doc, "key": did_key}.to_json
             subDidHash = oyd_hash(subDid)
             signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
-            if options[:ts].nil?
-                ts = Time.now.to_i
-            else
-                ts = options[:ts]
-            end
             revocationLog = { 
-                "ts": ts,
+                "ts": ts_old,
                 "op": 1, # REVOKE
                 "doc": subDidHash,
                 "sig": signedSubDidHash }.transform_keys(&:to_s).to_json
@@ -387,11 +454,6 @@ def write_did(content, did, mode, options)
     subDid = {"doc": did_doc, "key": did_key}.to_json
     subDidHash = oyd_hash(subDid)
     signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
-    if options[:ts].nil?
-        ts = Time.now.to_i
-    else
-        ts = options[:ts]
-    end
     r1 = { "ts": ts,
            "op": 1, # REVOKE
            "doc": subDidHash,
@@ -406,11 +468,6 @@ def write_did(content, did, mode, options)
     if !doc_location.nil?
         l2_doc += LOCATION_PREFIX + doc_location.to_s
     end    
-    if options[:ts].nil?
-        ts = Time.now.to_i
-    else
-        ts = options[:ts]
-    end
     l2 = { "ts": ts,
            "op": 0, # TERMINATE
            "doc": l2_doc,
@@ -430,11 +487,6 @@ def write_did(content, did, mode, options)
     l1_doc = oyd_hash(didDocument.to_json)
     if !doc_location.nil?
         l1_doc += LOCATION_PREFIX + doc_location.to_s
-    end
-    if options[:ts].nil?
-        ts = Time.now.to_i
-    else
-        ts = options[:ts]
     end
     l1 = { "ts": ts,
            "op": operation_mode, # CREATE
@@ -468,14 +520,22 @@ def write_did(content, did, mode, options)
             puts "Error: " + retVal.parsed_response['error'].to_s
             exit(1)            
         end
-        File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
-        File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
-        File.write(did10 + "_revocation.json", r1.to_json)
+        if options[:doc_pwd].nil?
+            File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
+        end
+        if options[:rev_pwd].nil?
+            File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
+            File.write(did10 + "_revocation.json", r1.to_json)
+        end
     else
         # write files to disk
-        File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
-        File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
-        File.write(did10 + "_revocation.json", r1.to_json)
+        if options[:doc_pwd].nil?
+            File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
+        end
+        if options[:rev_pwd].nil?
+            File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
+            File.write(did10 + "_revocation.json", r1.to_json)
+        end
         File.write(did10 + ".log", [old_log, l1, l2].flatten.compact.to_json)
         if !did_old.nil?
             File.write(did10_old + ".log", [old_log, l1, l2].flatten.compact.to_json)
@@ -511,6 +571,12 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("--rev-key REVOCATION-KEY") do |rk|
     options[:rev_key] = rk
+  end
+  opt.on("--doc-pwd DOCUMENT-PASSWORD") do |dp|
+    options[:doc_pwd] = dp
+  end
+  opt.on("--rev-pwd REVOCATION-PASSWORD") do |rp|
+    options[:rev_pwd] = rp
   end
   opt.on("--ts TIMESTAMP") do |ts|
     options[:ts] = ts.to_i
@@ -568,6 +634,8 @@ when "log"
     end
 when "update"
     write_did(content, input_did, "update", options)
+when "delete"
+    delete_did(input_did, options)
 when "clone", "delegate", "challenge", "confirm"
     puts "Warning: function not yet available"
 else
@@ -578,6 +646,7 @@ else
     puts "  create    - new DID, reads doc from STDIN"
     puts "  read      - output DID Document for given DID in option"
     puts "  update    - update DID Document, reads doc from STDIN and DID specified as option"
+    puts "  delete    - remove DID and all associated records (only for testing)"
     puts "  log       - print complete log for given DID or log entry hash"
     puts "  clone     - clone DID to new location"
     puts "  delegate  - add log entry with additional keys for validating signatures of"
@@ -587,7 +656,9 @@ else
     puts ""
     puts "options:"
     puts "  --doc-key   - filename with Base58 encoded private key for signing documents"
+    puts "  --doc-pwd   - password for private key for signing documents"
     puts "  --rev-key   - filename with Base58 encoded private key for signing a revocation"
-    puts "  --timestamp - timestamp to be used (should be only used for testing)"
+    puts "  --rev-pwd   - password for private key for signing a revocation"
+    puts "  --timestamp - timestamp to be used (only for testing)"
     puts "  --show-hash - for log output additionally show hash value of each entry"
 end
