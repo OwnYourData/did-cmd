@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-OYDIDCMD='../oydid.rb'
-# OYDIDCMD='oydid'
+# OYDIDCMD='../oydid.rb'
+OYDIDCMD='oydid'
 
 # install current version
 sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
@@ -19,6 +19,11 @@ echo '{"hello": "world2"}' | $OYDIDCMD create --doc-key c1/private_key.b58 --rev
 $OYDIDCMD read did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc
 if ! cmp -s tmp.doc c1/8LZMwgahJp.doc ; then
 	echo "reading from public failed"
+	exit 1
+fi
+$OYDIDCMD read --w3c-did did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc
+if ! cmp -s tmp.doc c1/w3c-did.doc ; then
+	echo "converting to W3C DID format failed"
 	exit 1
 fi
 rm 8* tmp.doc

@@ -552,6 +552,29 @@ def write_did(content, did, mode, options)
     end
 end
 
+def w3c_did(did_info)
+    pubDocKey = did_info["doc"]["key"].split(":")[0] rescue ""
+    pubRevKey = did_info["doc"]["key"].split(":")[1] rescue ""
+
+    wd = {}
+    wd["@context"] = "https://www.w3.org/ns/did/v1"
+    wd["id"] = "oyd:did:" + did_info["did"]
+    wd["verificationMethod"] = [{
+        "id": "oyd:did:" + did_info["did"],
+        "type": "Ed25519VerificationKey2018",
+        "controller": "oyd:did:" + did_info["did"],
+        "publicKeyBase58": pubDocKey
+    }]
+    wd["keyAgreement"] = [{
+        "id": "oyd:did:" + did_info["did"],
+        "type": "X25519KeyAgreementKey2019",
+        "controller": "oyd:did:" + did_info["did"],
+        "publicKeyBase58": pubRevKey
+    }]
+    wd["service"] = [did_info["doc"]["doc"]]
+    puts wd.to_json
+end
+
 # commandline options
 options = { }
 opt_parser = OptionParser.new do |opt|
@@ -565,6 +588,9 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("-t","--trace","show trace information when reading DID") do |trc|
     options[:trace] = true
+  end
+  opt.on("--w3c-did") do |w3c|
+    options[:w3cdid] = true
   end
   opt.on("--doc-key DOCUMENT-KEY") do |dk|
     options[:doc_key] = dk
@@ -612,7 +638,11 @@ when "read"
         exit(-1)
     end
     if !options[:trace]
-        puts result["doc"].to_json
+        if options[:w3cdid]
+            w3c_did(result)
+        else
+            puts result["doc"].to_json
+        end
     end
 when "log"
     log_hash = input_did
@@ -659,6 +689,7 @@ else
     puts "  --doc-pwd   - password for private key for signing documents"
     puts "  --rev-key   - filename with Base58 encoded private key for signing a revocation"
     puts "  --rev-pwd   - password for private key for signing a revocation"
-    puts "  --timestamp - timestamp to be used (only for testing)"
     puts "  --show-hash - for log output additionally show hash value of each entry"
+    puts "  --timestamp - timestamp to be used (only for testing)"
+    puts "  --w3c-did   - display DID Document in W3C compatible format"
 end
