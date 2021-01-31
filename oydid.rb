@@ -149,11 +149,16 @@ def retrieve_document(doc_hash, doc_file, doc_location, options)
     when /^http/
         retVal = HTTParty.get(doc_location + "/doc/" + doc_hash)
         if retVal.code != 200
-            puts "Error: " + retVal.parsed_response("error").to_s
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: " + retVal.parsed_response("error").to_s rescue 
+                    puts "invalid response from " + doc_location + "/doc/" + doc_hash
+            end
             exit(1)
         end
         if options[:trace]
-            puts "GET " + doc_hash + " from " + doc_location
+            if options[:silent].nil? || !options[:silent]
+                puts "GET " + doc_hash + " from " + doc_location
+            end
         end
         return retVal.parsed_response
     when "", "local"
@@ -184,11 +189,16 @@ def retrieve_log(did_hash, log_file, log_location, options)
     when /^http/
         retVal = HTTParty.get(log_location + "/log/" + did_hash)
         if retVal.code != 200
-            puts "Error: " + retVal.parsed_response["error"].to_s
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: " + retVal.parsed_response["error"].to_s rescue 
+                    puts "invalid response from " + log_location + "/log/" + did_hash
+            end
             exit(1)
         end
         if options[:trace]
-            puts "GET log for " + did_hash + " from " + log_location
+            if options[:silent].nil? || !options[:silent]
+                puts "GET log for " + did_hash + " from " + log_location
+            end
         end
         retVal = JSON.parse(retVal.to_s) rescue nil
         return retVal
@@ -308,7 +318,9 @@ def delete_did(did, options)
 
     if options[:doc_key].nil?
         if options[:doc_pwd].nil?
-            puts "Error: missing document key"
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: missing document key"
+            end
             exit 1
         else
             privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
@@ -318,7 +330,9 @@ def delete_did(did, options)
     end
     if options[:rev_key].nil?
         if options[:rev_pwd].nil?
-            puts "Error: missing revocation key"
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: missing revocation key"
+            end
             exit 1
         else
             revocationKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:rev_pwd].to_s))
@@ -336,7 +350,10 @@ def delete_did(did, options)
         headers: { 'Content-Type' => 'application/json' },
         body: did_data.to_json )
     if retVal.code != 200
-        puts "Error: " + retVal.parsed_response["error"].to_s rescue ""
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: " + retVal.parsed_response["error"].to_s rescue 
+                puts "invalid response from " + oydid_url
+        end
         exit 1
     end
 end
@@ -368,7 +385,9 @@ def write_did(content, did, mode, options)
         else
             privateKey = get_key(options[:doc_key].to_s, "sign")
             if privateKey.nil?
-                puts "Error: private key not found"
+                if options[:silent].nil? || !options[:silent]
+                    puts "Error: private key not found"
+                end
                 exit 1
             end
         end
@@ -381,18 +400,24 @@ def write_did(content, did, mode, options)
         else
             revocationKey = get_key(options[:rev_key].to_s, "sign")
             if privateKey.nil?
-                puts "Error: revocation key not found"
+                if options[:silent].nil? || !options[:silent]
+                    puts "Error: revocation key not found"
+                end
                 exit 1
             end
         end
     else # mode == "update"  => read information
         did_info = resolve_did(did, options)
         if did_info.nil?
-            puts "Error: cannot resolve DID"
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: cannot resolve DID"
+            end
             exit (-1)
         end
         if did_info["error"] != 0
-            puts "Error: " + did_info["message"]
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: " + did_info["message"]
+            end
             exit(1)
         end
 
@@ -490,24 +515,38 @@ def write_did(content, did, mode, options)
                     "key": did_key,
                     "log": log_str }.transform_keys(&:to_s)
 
-    # build creation log entry
+    # create DID
     l1_doc = oyd_hash(didDocument.to_json)
     if !doc_location.nil?
         l1_doc += LOCATION_PREFIX + doc_location.to_s
+    end    
+    did = "did:oyd:" + l1_doc
+    did10 = l1_doc[0,10]
+    if doc_location.to_s == ""
+        doc_location = "https://oydid.ownyourdata.eu"
     end
+
+    if mode == "clone"
+        # create log entry for source DID
+        new_log = {
+            "ts": ts,
+            "op": 4, # CLONE
+            "doc": l1_doc,
+            "sig": oyd_encode(privateKey.sign(l1_doc)),
+            "previous": [options[:previous_clone].to_s]
+        }
+        retVal = HTTParty.post(options[:source_location] + "/log/" + options[:source_did],
+            headers: { 'Content-Type' => 'application/json' },
+            body: {"log": new_log}.to_json )
+        prev_hash = [oyd_hash(new_log.to_json)]
+    end
+
+    # build creation log entry
     l1 = { "ts": ts,
            "op": operation_mode, # CREATE
            "doc": l1_doc,
            "sig": oyd_encode(privateKey.sign(l1_doc)),
            "previous": prev_hash }.transform_keys(&:to_s)
-
-    # create DID
-    did = "did:oyd:" + l1_doc
-    did10 = l1_doc[0,10]
-
-    if doc_location.to_s == ""
-        doc_location = "https://oydid.ownyourdata.eu"
-    end
 
     # wirte data based on location
     case doc_location.to_s
@@ -524,7 +563,10 @@ def write_did(content, did, mode, options)
             headers: { 'Content-Type' => 'application/json' },
             body: did_data.to_json )
         if retVal.code != 200
-            puts "Error: " + retVal.parsed_response['error'].to_s
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: " + retVal.parsed_response['error'].to_s rescue 
+                    puts "invalid response from " + doc_location + "/doc/" + doc_hash
+            end
             exit(1)            
         end
         if options[:doc_pwd].nil?
@@ -551,17 +593,16 @@ def write_did(content, did, mode, options)
         File.write(did10 + ".did", did)
     end
 
-    # write DID to stdout
-    case mode
-    when "create"
-        puts "created " + did
-    when "update"
-        puts "updated " + did
-    else
-        {
-            "did": did,
-            "sig": oyd_encode(privateKey.sign(did))
-        }.transform_keys(&:to_s)
+    if options[:silent].nil? || !options[:silent]
+        # write DID to stdout
+        case mode
+        when "create"
+            puts "created " + did
+        when "clone"
+            puts "cloned " + did
+        when "update"
+            puts "updated " + did
+        end
     end
 end
 
@@ -580,7 +621,9 @@ def clone_did(did, options)
         source_location = "https://oydid.ownyourdata.eu"
     end
     if target_location == source_location
-        puts "Error: cannot clone to same location (" + target_location.to_s + ")"
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot clone to same location (" + target_location.to_s + ")"
+        end
         exit 1
     end
 
@@ -589,11 +632,15 @@ def clone_did(did, options)
     options[:log_location] = source_location
     source_did = resolve_did(did, options)
     if source_did.nil?
-        puts "Error: cannot resolve DID"
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot resolve DID"
+        end
         exit (-1)
     end
     if source_did["error"] != 0
-        puts "Error: " + source_did["message"].to_s
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: " + source_did["message"].to_s
+        end
         exit(-1)
     end
     source_log = source_did["log"].first(source_did["doc_log_id"]).last.to_json
@@ -601,30 +648,14 @@ def clone_did(did, options)
     # write did to new location
     options[:doc_location] = target_location
     options[:log_location] = target_location
-    result = write_did([source_did["doc"]["doc"].to_json], nil, "clone", options)
-
-    # update log at original location
-    if options[:ts].nil?
-        ts = Time.now.to_i
-    else
-        ts = options[:ts]
-    end
-
-    new_log = {
-        "ts": ts,
-        "op": 4, # CLONE
-        "doc": result["did"],
-        "sig": result["sig"],
-        "previous": [oyd_hash(source_log) + ";" + source_location]
-    }
-    retVal = HTTParty.post(source_location + "/log/" + source_did["did"],
-        headers: { 'Content-Type' => 'application/json' },
-        body: {"log": new_log}.to_json )
-    puts "cloned " + result["did"]
+    options[:previous_clone] = oyd_hash(source_log) + LOCATION_PREFIX + source_location
+    options[:source_location] = source_location
+    options[:source_did] = source_did["did"]
+    write_did([source_did["doc"]["doc"].to_json], nil, "clone", options)
 
 end
 
-def w3c_did(did_info)
+def w3c_did(did_info, options)
     pubDocKey = did_info["doc"]["key"].split(":")[0] rescue ""
     pubRevKey = did_info["doc"]["key"].split(":")[1] rescue ""
 
@@ -644,7 +675,9 @@ def w3c_did(did_info)
         "publicKeyBase58": pubRevKey
     }]
     wd["service"] = [did_info["doc"]["doc"]]
-    puts wd.to_json
+    if options[:silent].nil? || !options[:silent]
+        puts wd.to_json
+    end
 end
 
 # commandline options
@@ -660,6 +693,9 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("-t","--trace","show trace information when reading DID") do |trc|
     options[:trace] = true
+  end
+  opt.on("--silent") do |s|
+    options[:silent] = true
   end
   opt.on("--w3c-did") do |w3c|
     options[:w3cdid] = true
@@ -702,18 +738,24 @@ when "create"
 when "read"
     result = resolve_did(input_did, options)
     if result.nil?
-        puts "Error: cannot resolve DID"
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot resolve DID"
+        end
         exit (-1)
     end
     if result["error"] != 0
-        puts "Error: " + result["message"].to_s
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: " + result["message"].to_s
+        end
         exit(-1)
     end
     if !options[:trace]
         if options[:w3cdid]
-            w3c_did(result)
+            w3c_did(result, options)
         else
-            puts result["doc"].to_json
+            if options[:silent].nil? || !options[:silent]
+                puts result["doc"].to_json
+            end
         end
     end
 when "clone"
@@ -732,9 +774,13 @@ when "log"
             log_location = options[:log_location]
         end
         result = HTTParty.get(log_location + "/log/" + log_hash)
-        puts JSON.parse(result.to_s).to_json
+        if options[:silent].nil? || !options[:silent]
+            puts JSON.parse(result.to_s).to_json
+        end
     else
-        puts result["log"].to_json
+        if options[:silent].nil? || !options[:silent]
+            puts result["log"].to_json
+        end
     end
 when "update"
     write_did(content, input_did, "update", options)
@@ -764,6 +810,7 @@ else
     puts "  --rev-key   - filename with Base58 encoded private key for signing a revocation"
     puts "  --rev-pwd   - password for private key for signing a revocation"
     puts "  --show-hash - for log output additionally show hash value of each entry"
+    puts "  --silent    - suppress any output"
     puts "  --timestamp - timestamp to be used (only for testing)"
     puts "  --w3c-did   - display DID Document in W3C compatible format"
 end
