@@ -1,14 +1,17 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+require 'securerandom'
 require 'httparty'
 require 'ed25519'
 require 'base58'
 require 'optparse'
 require 'rbnacl'
 require 'dag'
+require 'uri'
 
 LOCATION_PREFIX = ";"
+DEFAULT_LOCATION = "https://oydid.ownyourdata.eu"
 
 def oyd_encode(message)
     # Base58.encode(message.force_encoding('ASCII-8BIT').unpack('H*')[0].to_i(16))
@@ -136,13 +139,13 @@ def get_location(id)
         id_split = id.split(LOCATION_PREFIX)
         return id_split[1]
     else
-        return "https://oydid.ownyourdata.eu"
+        return DEFAULT_LOCATION
     end
 end
 
 def retrieve_document(doc_hash, doc_file, doc_location, options)
     if doc_location == ""
-        doc_location = "https://oydid.ownyourdata.eu"
+        doc_location = DEFAULT_LOCATION
     end
 
     case doc_location
@@ -182,7 +185,7 @@ end
 
 def retrieve_log(did_hash, log_file, log_location, options)
     if log_location == ""
-        log_location = "https://oydid.ownyourdata.eu"
+        log_location = DEFAULT_LOCATION
     end
 
     case log_location
@@ -255,7 +258,7 @@ def resolve_did(did, options)
         end
     end
     if did_location == ""
-        did_location = "https://oydid.ownyourdata.eu"
+        did_location = DEFAULT_LOCATION
     end
 
     # retrieve DID document
@@ -288,7 +291,7 @@ def resolve_did(did, options)
     end
 
     if log_location == ""
-        log_location = "https://oydid.ownyourdata.eu"
+        log_location = DEFAULT_LOCATION
     end
 
     # retrieve log
@@ -312,7 +315,7 @@ def delete_did(did, options)
         end
     end
     if doc_location.to_s == ""
-        doc_location = "https://oydid.ownyourdata.eu"
+        doc_location = DEFAULT_LOCATION
     end
     did = did.delete_prefix("did:oyd:")
 
@@ -371,7 +374,6 @@ def write_did(content, did, mode, options)
     else
         ts = options[:ts]
     end
-
 
     if mode == "create" || mode == "clone"
         first_id = 1
@@ -523,7 +525,7 @@ def write_did(content, did, mode, options)
     did = "did:oyd:" + l1_doc
     did10 = l1_doc[0,10]
     if doc_location.to_s == ""
-        doc_location = "https://oydid.ownyourdata.eu"
+        doc_location = DEFAULT_LOCATION
     end
 
     if mode == "clone"
@@ -557,7 +559,6 @@ def write_did(content, did, mode, options)
             "did-document": didDocument,
             "logs": [revoc_log, l1, l2].flatten.compact
         }
-
         oydid_url = doc_location.to_s + "/doc"
         retVal = HTTParty.post(oydid_url,
             headers: { 'Content-Type' => 'application/json' },
@@ -569,19 +570,19 @@ def write_did(content, did, mode, options)
             end
             exit(1)            
         end
-        if options[:doc_pwd].nil?
+        if options[:doc_pwd].nil? && options[:doc_key].nil?
             File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
         end
-        if options[:rev_pwd].nil?
+        if options[:rev_pwd].nil? && options[:rev_key].nil?
             File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
             File.write(did10 + "_revocation.json", r1.to_json)
         end
     else
         # write files to disk
-        if options[:doc_pwd].nil?
+        if options[:doc_pwd].nil? && options[:doc_key].nil?
             File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
         end
-        if options[:rev_pwd].nil?
+        if options[:rev_pwd].nil? && options[:rev_key].nil?
             File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
             File.write(did10 + "_revocation.json", r1.to_json)
         end
@@ -604,13 +605,14 @@ def write_did(content, did, mode, options)
             puts "updated " + did
         end
     end
+    did
 end
 
 def clone_did(did, options)
     # check if locations differ
     target_location = options[:doc_location]
     if target_location.to_s == ""
-        target_location = "https://oydid.ownyourdata.eu"
+        target_location = DEFAULT_LOCATION
     end
     if did.include?(LOCATION_PREFIX)
         hash_split = did.split(LOCATION_PREFIX)
@@ -618,7 +620,7 @@ def clone_did(did, options)
         source_location = hash_split[1]
     end
     if source_location.to_s == ""
-        source_location = "https://oydid.ownyourdata.eu"
+        source_location = DEFAULT_LOCATION
     end
     if target_location == source_location
         if options[:silent].nil? || !options[:silent]
@@ -680,6 +682,146 @@ def w3c_did(did_info, options)
     end
 end
 
+def sc_init(options)
+    sc_info_url = options[:location].to_s + "/api/info"
+    sc_info = HTTParty.get(sc_info_url,
+        headers: {'Authorization' => 'Bearer ' + options[:token].to_s}).parsed_response rescue {}
+
+    # build DID doc element
+    image_hash = sc_info["image_hash"].to_s.delete_prefix("sha256:") rescue ""
+    content = {
+        "service_endpoint": sc_info["serviceEndPoint"].to_s + "/api/data",
+        "image_hash": image_hash,
+        "uid": sc_info["uid"]
+    }
+
+    # set options and write DID
+    sc_options = options.dup
+    sc_options[:location] = sc_info["serviceEndPoint"] || options[:location]
+    sc_options[:doc_location] = sc_options[:location]
+    sc_options[:log_location] = sc_options[:location]
+    sc_options[:silent] = true
+    did = write_did([content.to_json], nil, "create", sc_options)
+
+    did_info = resolve_did(did, options)
+    doc_pub_key = did_info["doc"]["key"].split(":")[0].to_s rescue ""
+
+    # create OAuth App for DID in Semantic Container
+    response = HTTParty.post(options[:location].to_s + "/oauth/applications",
+        headers: { 'Content-Type'  => 'application/json',
+                   'Authorization' => 'Bearer ' + options[:token].to_s },
+        body: { name: doc_pub_key, 
+                scopes: "admin write read" }.to_json )
+
+    # print DID
+    if options[:silent].nil? || !options[:silent]
+        retVal = {"did": did}.to_json
+        puts retVal
+    end
+
+end
+
+def sc_token(did, options)
+    if options[:doc_key].nil?
+        if options[:doc_pwd].nil?
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: missing private key"
+            end
+            exit 1
+        else
+            privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
+        end
+    else
+        privateKey = get_key(options[:doc_key].to_s, "sign")
+        if privateKey.nil?
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: private key not found"
+            end
+            exit 1
+        end
+    end
+    if did.include?(LOCATION_PREFIX)
+        hash_split = did.split(LOCATION_PREFIX)
+        doc_location = hash_split[1]
+    end
+
+    # check if provided private key matches pubkey in DID document
+    did_info = resolve_did(did, options)
+    if did_info["doc"]["key"].split(":")[0].to_s != Base58.binary_to_base58(privateKey.verify_key.to_bytes)
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: private key does not match DID document"
+        end
+        exit 1
+    end
+
+    # authenticate against container
+    init_url = doc_location + "/api/oydid/init"
+    sid = SecureRandom.hex(20).to_s
+    response = HTTParty.post(init_url,
+        headers: { 'Content-Type' => 'application/json' },
+        body: { "session_id": sid, 
+                "public_key": Base58.binary_to_base58(privateKey.verify_key.to_bytes) }.to_json ).parsed_response rescue {}
+    if response["challenge"].nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: invalid container authentication"
+        end
+        exit 1
+    end
+    challenge = response["challenge"].to_s
+
+    # sign challenge and request token
+    token_url = doc_location + "/api/oydid/token"
+    response = HTTParty.post(token_url,
+        headers: { 'Content-Type' => 'application/json' },
+        body: { "session_id": sid, 
+                "signed_challenge": oyd_encode(privateKey.sign(challenge)) }.to_json).parsed_response rescue {}
+    puts response.to_json
+
+end
+
+def sc_create(content, did, options)
+    # validation
+    c = JSON.parse(content.join("")) rescue {}
+    if c["service_endpoint"].nil?
+        puts "Error: missing service endpoint"
+        exit 1
+    end
+    if c["scope"].nil?
+        puts "Error: missing scope"
+        exit 1
+    end
+
+    # get Semantic Container location from DID
+    did_info = resolve_did(did, options)
+    sc_url = did_info["doc"]["doc"]["service_endpoint"]
+    baseurl = URI.join(sc_url, "/").to_s.delete_suffix("/")
+
+    sc_options = options.dup
+    sc_options[:location] = baseurl
+    sc_options[:doc_location] = sc_options[:location]
+    sc_options[:log_location] = sc_options[:location]
+    sc_options[:silent] = true
+    new_did = write_did([c.to_json], nil, "create", sc_options)
+
+    did_info = resolve_did(new_did, sc_options)
+    doc_pub_key = did_info["doc"]["key"].split(":")[0].to_s rescue ""
+
+    # create OAuth App for DID in Semantic Container
+    response = HTTParty.post(sc_options[:location].to_s + "/oauth/applications",
+        headers: { 'Content-Type'  => 'application/json',
+                   'Authorization' => 'Bearer ' + options[:token].to_s },
+        body: { name: doc_pub_key, 
+                scopes: c["scope"],
+                query: c["service_endpoint"] }.to_json )
+
+    # print DID
+    if options[:silent].nil? || !options[:silent]
+        retVal = {"did": new_did}.to_json
+        puts retVal
+    end
+
+end
+
 # commandline options
 options = { }
 opt_parser = OptionParser.new do |opt|
@@ -712,15 +854,23 @@ opt_parser = OptionParser.new do |opt|
   opt.on("--rev-pwd REVOCATION-PASSWORD") do |rp|
     options[:rev_pwd] = rp
   end
+  opt.on("-t", "--token TOKEN", "token to access Semantic Container") do |t|
+    options[:token] = t
+  end
   opt.on("--ts TIMESTAMP") do |ts|
     options[:ts] = ts.to_i
   end
 end
 opt_parser.parse!
-operation = ARGV.shift
-input_did = ARGV.shift
 
-if operation == "create" || operation == "update"
+operation = ARGV.shift rescue ""
+input_did = ARGV.shift rescue ""
+if input_did.to_s == "" && operation.start_with?("did:oyd:")
+    input_did = operation
+    operation = "read"
+end
+
+if operation == "create" || operation == "sc_create" || operation == "update" 
     content = []
     ARGF.each_line { |line| content << line }
 end
@@ -786,6 +936,14 @@ when "update"
     write_did(content, input_did, "update", options)
 when "delete"
     delete_did(input_did, options)
+
+when "sc_init"
+    sc_init(options)
+when "sc_token"
+    sc_token(input_did, options)
+when "sc_create"
+    sc_create(content, input_did, options)
+
 when "delegate", "challenge", "confirm"
     puts "Warning: function not yet available"
 else
@@ -804,6 +962,11 @@ else
     puts "  challenge - publish challenge for given DID and revoke specified as options"
     puts "  confirm   - confirm specified clones or delegates for given DID"
     puts ""
+    puts "Semantic Container operations:"
+    puts "  sc_init   - create initial DID for a Semantic Container (requires TOKEN with admin scope)"
+    puts "  sc_token  - retrieve OAuth2 bearer token using DID Auth"
+    puts "  sc_create - create additional DID for specified subset of data and scope"
+    puts ""
     puts "options:"
     puts "  --doc-key   - filename with Base58 encoded private key for signing documents"
     puts "  --doc-pwd   - password for private key for signing documents"
@@ -812,5 +975,6 @@ else
     puts "  --show-hash - for log output additionally show hash value of each entry"
     puts "  --silent    - suppress any output"
     puts "  --timestamp - timestamp to be used (only for testing)"
+    puts "  --token     - OAuth2 bearer token to access Semantic Container"
     puts "  --w3c-did   - display DID Document in W3C compatible format"
 end

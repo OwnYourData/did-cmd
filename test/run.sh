@@ -35,7 +35,7 @@ if ! cmp -s tmp.doc c1/w3c-did.doc ; then
 	echo "converting to W3C DID format failed"
 	exit 1
 fi
-rm 8* tmp.doc
+rm tmp.doc
 
 # test updating DID Document
 echo '{"hello": "world3"}' | $OYDIDCMD update did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839948
@@ -44,7 +44,7 @@ if ! cmp -s tmp.doc c1/9Gsid3RsCC.doc ; then
 	echo "updating public failed"
 	exit 1
 fi
-rm 9G* tmp.doc
+rm tmp.doc
 
 # test creating public DID Document with password
 echo '{"hello": "world4"}' | $OYDIDCMD create --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839947
