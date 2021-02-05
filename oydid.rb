@@ -757,6 +757,7 @@ def sc_token(did, options)
     # authenticate against container
     init_url = doc_location + "/api/oydid/init"
     sid = SecureRandom.hex(20).to_s
+
     response = HTTParty.post(init_url,
         headers: { 'Content-Type' => 'application/json' },
         body: { "session_id": sid, 
@@ -802,7 +803,6 @@ def sc_create(content, did, options)
     sc_options[:log_location] = sc_options[:location]
     sc_options[:silent] = true
     new_did = write_did([c.to_json], nil, "create", sc_options)
-
     did_info = resolve_did(new_did, sc_options)
     doc_pub_key = did_info["doc"]["key"].split(":")[0].to_s rescue ""
 
@@ -813,6 +813,8 @@ def sc_create(content, did, options)
         body: { name: doc_pub_key, 
                 scopes: c["scope"],
                 query: c["service_endpoint"] }.to_json )
+
+    # !!! add error handling (e.g., for missing token)
 
     # print DID
     if options[:silent].nil? || !options[:silent]
@@ -865,7 +867,7 @@ opt_parser.parse!
 
 operation = ARGV.shift rescue ""
 input_did = ARGV.shift rescue ""
-if input_did.to_s == "" && operation.start_with?("did:oyd:")
+if input_did.to_s == "" && operation.to_s.start_with?("did:oyd:")
     input_did = operation
     operation = "read"
 end
