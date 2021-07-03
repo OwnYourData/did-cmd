@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 OYDIDCMD='../oydid.rb'
-# OYDIDCMD='oydid'
+# export OYDIDCMD='oydid'
 
 # CONTAINER_NAME=test_sc_1
-CONTAINER_NAME=oydid
+export CONTAINER_NAME=oydid
 
 # start local Semantic Container and get access token
 export SEMCON_URL='http://localhost:4000'
@@ -13,8 +13,8 @@ docker rm -f oydid
 IMAGE=semcon/sc-base:latest; docker run -d --name $CONTAINER_NAME -p 4000:3000 -e AUTH=true \
     -e IMAGE_SHA256="$(docker image ls --no-trunc -q $IMAGE | tail -1)" \
     -e IMAGE_NAME=$IMAGE \
-    -e SERVICE_ENDPOINT="http://10.0.0.16:4000" $IMAGE
-#    -e SERVICE_ENDPOINT="http://192.168.178.21:4000" $IMAGE
+    -e SERVICE_ENDPOINT="http://192.168.178.21:4000" $IMAGE
+#    -e SERVICE_ENDPOINT="http://10.0.0.16:4000" $IMAGE
 # wait until container started
 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $SEMCON_URL/api/active)" != "200" ]]; do sleep 3; done'
 sleep 10

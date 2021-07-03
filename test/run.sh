@@ -23,6 +23,15 @@ if ! cmp -s 5QW66zAqWn.doc c1/did.doc ; then
 fi
 rm 5*
 
+# test creating invalid DID Document
+retval=`echo '{' | $OYDIDCMD create -l local --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58`
+if [ "$retval" == "Error: empty or invalid payload" ]; then
+	echo "invalid input handled"
+else
+	echo "processing invalid input failed"
+	exit 1
+fi
+
 # test creating public DID Document
 echo '{"hello": "world2"}' | $OYDIDCMD create --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839947
 $OYDIDCMD read did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc

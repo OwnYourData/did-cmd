@@ -364,6 +364,12 @@ end
 def write_did(content, did, mode, options)
     # generate did_doc and did_key
     did_doc = JSON.parse(content.join("")) rescue {}
+    if did_doc == {}
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: empty or invalid payload"
+        end
+        exit 1
+    end        
     did_old = nil
     prev_hash = []
     revoc_log = nil
