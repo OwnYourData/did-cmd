@@ -20,6 +20,7 @@ oydid read {use output from above did:oyd:...}
 ```
 
 ## Further Resources
+Read about the concept and find examples in this document: [OYDIDintro.pdf](https://raw.githubusercontent.com/OwnYourData/did-cmd/main/OYDIDintro.pdf)    
 To host DIDs yourself you can use the `oydid/did-base` image on Dockerhub: https://hub.docker.com/r/oydid/did-base    
 API documentation is available here: https://api-docs.ownyourdata.eu/oydid/    
 
