@@ -27,70 +27,130 @@ def oyd_hash(message)
     oyd_encode(RbNaCl::Hash.sha256(message))
 end
 
-def dag_did(logs)
+def dag_did(logs, options)
     dag = DAG.new
     dag_log = []
     log_hash = []
+
+    # calculate hash values for each entry and build vertices
     i = 0
-    dag_log << dag.add_vertex(id: i)
+    create_entries = 0
+    create_index = nil
+    terminate_indices = []
     logs.each do |el|
-        i += 1
-        dag_log << dag.add_vertex(id: i)
+        if el["op"].to_i == 2
+            create_entries += 1
+            create_index = i
+        end
+        if el["op"].to_i == 0
+            terminate_indices << i
+        end
         log_hash << oyd_hash(el.to_json)
-        if el["previous"] == []
-            dag.add_edge from: dag_log[0], to: dag_log[i]
-        else
-            el["previous"].each do |p|
-                position = log_hash.find_index(p)
-                if !position.nil?
-                    dag.add_edge from: dag_log[position+1], to: dag_log[i]
-                end
+        dag_log << dag.add_vertex(id: i)
+        i += 1
+    end unless logs.nil?
+
+    if create_entries != 1
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: wrong number of CREATE entries (" + create_entries.to_s + ") in log"
+        end
+        exit(1)
+    end
+    if terminate_indices.length == 0
+       if options[:silent].nil? || !options[:silent]
+            puts "Error: missing TERMINATE entries"
+        end
+        exit(1)
+    end 
+
+    # create edges between vertices
+    i = 0
+    logs.each do |el|
+        el["previous"].each do |p|
+            position = log_hash.find_index(p)
+            if !position.nil?
+                dag.add_edge from: dag_log[position], to: dag_log[i]
+            end
+        end unless el["previous"] == []
+        i += 1
+    end unless logs.nil?
+
+    # identify tangling TERMINATE entry
+    i = 0
+    terminate_entries = 0
+    terminate_overall = 0
+    terminate_index = nil
+    logs.each do |el|
+        if el["op"].to_i == 0
+            if dag.vertices[i].successors.length == 0
+                terminate_entries += 1
+                terminate_index = i
+            end
+            terminate_overall += 1
+        end
+        i += 1
+    end unless logs.nil?
+    if terminate_entries != 1
+       if options[:silent].nil? || !options[:silent]
+            if terminate_overall > 0
+                puts "Error: cannot resolve DID"
+            else
+                puts "Error: invalid number of tangling TERMINATE entries (" + terminate_entries.to_s + ")"
             end
         end
-    end unless logs.nil?
-    return dag
+        exit(1)
+    end 
+
+    return [dag, create_index, terminate_index]
 end
 
-def dag_update(vertex, logs, currentDID)
-    vertex.successors.each do |v|
-        current_log = logs[v[:id].to_i - 1]
-        if currentDID["last_id"].nil?
-            currentDID["last_id"] = current_log["id"].to_i
-        else
-            if currentDID["last_id"].to_i < current_log["id"].to_i
-                currentDID["last_id"] = current_log["id"].to_i
-            end
+def dag2array(dag, log_array, index, result, options)
+    if options[:trace]
+        if options[:silent].nil? || !options[:silent]
+            puts "    vertex " + index.to_s + " at " + log_array[index]["ts"].to_s + " op: " + log_array[index]["op"].to_s + " doc: " + log_array[index]["doc"].to_s
         end
-        case current_log["op"]
+    end
+    result << log_array[index]
+    dag.vertices[index].successors.each do |s|
+        # check if successor has predecessor that is not self (i.e. REVOKE with TERMINATE)
+        s.predecessors.each do |p|
+            if p[:id] != index
+                if options[:trace]
+                    if options[:silent].nil? || !options[:silent]
+                        puts "    vertex " + p[:id].to_s + " at " + log_array[p[:id]]["ts"].to_s + " op: " + log_array[p[:id]]["op"].to_s + " doc: " + log_array[p[:id]]["doc"].to_s
+                    end
+                end
+                result << log_array[p[:id]]
+            end
+        end unless s.predecessors.length < 2
+        dag2array(dag, log_array, s[:id], result, options)
+    end unless dag.vertices[index].successors.count == 0
+    result
+end
+
+def dag_update(currentDID)
+    i = 0
+    currentDID["log"].each do |el|
+        case el["op"]
         when 2,3 # CREATE, UPDATE
-            doc_did = current_log["doc"]
+            doc_did = el["doc"]
             doc_location = get_location(doc_did)
             did_hash = doc_did.delete_prefix("did:oyd:")
             did10 = did_hash[0,10]
             doc = retrieve_document(doc_did, did10 + ".doc", doc_location, {})
-            # check if sig matches did doc 
-            if match_log_did?(current_log, doc)
-                currentDID["doc_log_id"] = v[:id].to_i
+            if match_log_did?(el, doc)
+                currentDID["doc_log_id"] = i
                 currentDID["did"] = doc_did
                 currentDID["doc"] = doc
-                if currentDID["last_sign_id"].nil?
-                    currentDID["last_sign_id"] = current_log["id"].to_i
-                else
-                    if currentDID["last_sign_id"].to_i < current_log["id"].to_i
-                        currentDID["last_sign_id"] = current_log["id"].to_i
-                    end
-                end
             end
-        when 0
-            # TODO: check if termination document exists
-            currentDID["termination_log_id"] = v[:id].to_i
+        when 0 # TERMINATE
+            currentDID["termination_log_id"] = i
+        else
         end
+        i += 1
+    end unless currentDID["log"].nil?
 
-        if v.successors.count > 0
-            currentDID = dag_update(v, logs, currentDID)
-        end
-    end
-    return currentDID
+    currentDID
 end
 
 def match_log_did?(log, doc)
@@ -232,8 +292,6 @@ def resolve_did(did, options)
         "log": [],
         "doc_log_id": nil,
         "termination_log_id": nil,
-        "last_id": nil,
-        "last_sign_id": nil,
         "error": 0,
         "message": ""
     }.transform_keys(&:to_s)
@@ -294,15 +352,37 @@ def resolve_did(did, options)
         log_location = DEFAULT_LOCATION
     end
 
-    # retrieve log
+    # retrieve and traverse log to get current DID state
     log_array = retrieve_log(log_hash, did10 + ".log", log_location, options)
-    currentDID["log"] = log_array
+    if options[:trace]
+        puts " .. Log retrieved"
+    end
 
-    # traverse log to get current DID state
-    dag = dag_did(log_array)
-    currentDID = dag_update(dag.vertices.first, log_array, currentDID)
+    dag, create_index, terminate_index = dag_did(log_array, options)
+    if options[:trace]
+        puts " .. DAG with " + dag.vertices.length.to_s + " vertices and " + dag.edges.length.to_s + " edges, CREATE index: " + create_index.to_s
+    end
+    ordered_log_array = dag2array(dag, log_array, create_index, [], options)
+    if options[:trace]
+        if options[:silent].nil? || !options[:silent]
+            puts "    vertex " + terminate_index.to_s + " at " + log_array[terminate_index]["ts"].to_s + " op: " + log_array[terminate_index]["op"].to_s + " doc: " + log_array[terminate_index]["doc"].to_s
+        end
+    end
+    ordered_log_array << log_array[terminate_index]
+    currentDID["log"] = ordered_log_array
+    if options[:trace]
+        if options[:silent].nil? || !options[:silent]
+            dag.edges.each do |e|
+                puts "    edge " + e.origin[:id].to_s + " -> " + e.destination[:id].to_s
+            end
+        end
+    end
+    currentDID = dag_update(currentDID)
+    if options[:log_complete]
+        currentDID["log"] = log_array
+    end
+    currentDID
 
-    return currentDID
 end
 
 def delete_did(did, options)
@@ -382,7 +462,6 @@ def write_did(content, did, mode, options)
     end
 
     if mode == "create" || mode == "clone"
-        first_id = 1
         operation_mode = 2 # CREATE
         if options[:doc_key].nil?
             if options[:doc_pwd].nil?
@@ -441,7 +520,6 @@ def write_did(content, did, mode, options)
                 doc_location = hash_split[1]
             end
         end
-        first_id = did_info["last_id"].to_i + 1
         operation_mode = 3 # UPDATE
         old_log = did_info["log"]
 
@@ -480,8 +558,8 @@ def write_did(content, did, mode, options)
         end
         revoc_log = JSON.parse(revocationLog)
         revoc_log["previous"] = [
-            oyd_hash(old_log[did_info["doc_log_id"].to_i - 1].to_json), 
-            oyd_hash(old_log[did_info["termination_log_id"].to_i - 1].to_json)
+            oyd_hash(old_log[did_info["doc_log_id"].to_i].to_json), 
+            oyd_hash(old_log[did_info["termination_log_id"].to_i].to_json)
         ]
         prev_hash = [oyd_hash(revoc_log.to_json)]
     end
@@ -614,6 +692,123 @@ def write_did(content, did, mode, options)
     did
 end
 
+def revoke_did(did, options)
+    doc_location = options[:doc_location]
+    if options[:ts].nil?
+        ts = Time.now.to_i
+    else
+        ts = options[:ts]
+    end
+    did_info = resolve_did(did, options)
+    if did_info.nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot resolve DID"
+        end
+        exit (-1)
+    end
+    if did_info["error"] != 0
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: " + did_info["message"]
+        end
+        exit(1)
+    end
+
+    did = did_info["did"]
+    did_old = did.dup
+    did_hash = did.delete_prefix("did:oyd:")
+    did10 = did_hash[0,10]
+    did10_old = did10
+    if doc_location.to_s == ""
+        if did_hash.include?(LOCATION_PREFIX)
+            hash_split = did_hash.split(LOCATION_PREFIX)
+            did_hash = hash_split[0]
+            doc_location = hash_split[1]
+        end
+    end
+    old_log = did_info["log"]
+
+    if options[:doc_key].nil?
+        if options[:doc_pwd].nil?
+            privateKey = get_key(did10 + "_private_key.b58", "sign")
+        else
+            privateKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:doc_pwd].to_s))
+        end
+    else
+        privateKey = get_key(options[:doc_key].to_s, "sign")
+    end
+    if privateKey.nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: private key not found"
+        end
+        exit(1)
+    end
+    if options[:rev_key].nil? && options[:rev_pwd].nil?
+        revocationKey = get_key(did10 + "_revocation_key.b58", "sign")
+        revocationLog = get_file(did10 + "_revocation.json")
+    else
+        if options[:rev_pwd].nil?
+            revocationKey = get_key(options[:rev_key].to_s, "sign")
+        else
+            revocationKey = Ed25519::SigningKey.new(RbNaCl::Hash.sha256(options[:rev_pwd].to_s))
+        end
+        # re-build revocation document
+        did_old_doc = did_info["doc"]["doc"]
+        ts_old = did_info["log"].last["ts"]
+        publicKey = privateKey.verify_key
+        pubRevoKey = revocationKey.verify_key
+        did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
+        subDid = {"doc": did_old_doc, "key": did_key}.to_json
+        subDidHash = oyd_hash(subDid)
+        signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
+        revocationLog = { 
+            "ts": ts_old,
+            "op": 1, # REVOKE
+            "doc": subDidHash,
+            "sig": signedSubDidHash }.transform_keys(&:to_s).to_json
+    end
+
+    if revocationLog.nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: private revocation key not found"
+        end
+        exit(1)
+    end
+
+    revoc_log = JSON.parse(revocationLog)
+    revoc_log["previous"] = [
+        oyd_hash(old_log[did_info["doc_log_id"].to_i].to_json), 
+        oyd_hash(old_log[did_info["termination_log_id"].to_i].to_json)
+    ]
+
+    if doc_location.to_s == ""
+        doc_location = DEFAULT_LOCATION
+    end
+
+    # publish revocation log based on location
+    case doc_location.to_s
+    when /^http/
+        retVal = HTTParty.post(doc_location.to_s + "/log/" + did.to_s,
+            headers: { 'Content-Type' => 'application/json' },
+            body: {"log": revoc_log}.to_json )
+        if retVal.code != 200
+            if options[:silent].nil? || !options[:silent]
+                puts "Error: " + retVal.parsed_response['error'].to_s rescue 
+                    puts "invalid response from " + doc_location + "/log/" + did
+            end
+            exit(1)
+        end
+    else
+        # nothing to do in local mode
+    end
+
+    if options[:silent].nil? || !options[:silent]
+        # write operations to stdout
+        puts "revoked did:oyd:" + did
+    end
+    did
+
+end
+
 def clone_did(did, options)
     # check if locations differ
     target_location = options[:doc_location]
@@ -639,6 +834,7 @@ def clone_did(did, options)
     options[:doc_location] = source_location
     options[:log_location] = source_location
     source_did = resolve_did(did, options)
+
     if source_did.nil?
         if options[:silent].nil? || !options[:silent]
             puts "Error: cannot resolve DID"
@@ -651,7 +847,13 @@ def clone_did(did, options)
         end
         exit(-1)
     end
-    source_log = source_did["log"].first(source_did["doc_log_id"]).last.to_json
+    if source_did["doc_log_id"].nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot parse DID log"
+        end
+        exit(-1)
+    end        
+    source_log = source_did["log"].first(source_did["doc_log_id"] + 1).last.to_json
 
     # write did to new location
     options[:doc_location] = target_location
@@ -669,17 +871,17 @@ def w3c_did(did_info, options)
 
     wd = {}
     wd["@context"] = "https://www.w3.org/ns/did/v1"
-    wd["id"] = "oyd:did:" + did_info["did"]
+    wd["id"] = "did:oyd:" + did_info["did"]
     wd["verificationMethod"] = [{
-        "id": "oyd:did:" + did_info["did"],
+        "id": "did:oyd:" + did_info["did"],
         "type": "Ed25519VerificationKey2018",
-        "controller": "oyd:did:" + did_info["did"],
+        "controller": "did:oyd:" + did_info["did"],
         "publicKeyBase58": pubDocKey
     }]
     wd["keyAgreement"] = [{
-        "id": "oyd:did:" + did_info["did"],
+        "id": "did:oyd:" + did_info["did"],
         "type": "X25519KeyAgreementKey2019",
-        "controller": "oyd:did:" + did_info["did"],
+        "controller": "did:oyd:" + did_info["did"],
         "publicKeyBase58": pubRevKey
     }]
     wd["service"] = [did_info["doc"]["doc"]]
@@ -838,6 +1040,7 @@ opt_parser = OptionParser.new do |opt|
   opt.separator  "OPERATION"
   opt.separator  "OPTIONS"
 
+  options[:log_complete] = false
   opt.on("-l","--location LOCATION","default URL to store/query DID data") do |loc|
     options[:location] = loc
   end
@@ -917,8 +1120,17 @@ when "read"
         end
     end
 when "clone"
-    clone_did(input_did, options)
-when "log"
+    result = clone_did(input_did, options)
+    if result.nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot resolve DID"
+        end
+        exit (-1)
+    end
+when "log", "logs"
+    if operation.to_s == "logs"
+        options[:log_complete] = true
+    end
     log_hash = input_did
     result = resolve_did(input_did, options)
     if result.nil?
@@ -931,7 +1143,10 @@ when "log"
         else
             log_location = options[:log_location]
         end
-        result = HTTParty.get(log_location + "/log/" + log_hash)
+        if log_location.to_s == ""
+            log_location = DEFAULT_LOCATION
+        end
+        result = HTTParty.get(log_location.to_s + "/log/" + log_hash.to_s)
         if options[:silent].nil? || !options[:silent]
             puts JSON.parse(result.to_s).to_json
         end
@@ -940,8 +1155,25 @@ when "log"
             puts result["log"].to_json
         end
     end
+when "dag"
+    options[:trace] = true
+    result = resolve_did(input_did, options)
+    if result.nil?
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: cannot resolve DID"
+        end
+        exit (-1)
+    end
+    if result["error"] != 0
+        if options[:silent].nil? || !options[:silent]
+            puts "Error: " + result["message"].to_s
+        end
+        exit(-1)
+    end
 when "update"
     write_did(content, input_did, "update", options)
+when "revoke"
+    revoke_did(input_did, options)
 when "delete"
     delete_did(input_did, options)
 
@@ -962,8 +1194,11 @@ else
     puts "  create    - new DID, reads doc from STDIN"
     puts "  read      - output DID Document for given DID in option"
     puts "  update    - update DID Document, reads doc from STDIN and DID specified as option"
+    puts "  revoke    - revoke DID by publishing revocation entry"
     puts "  delete    - remove DID and all associated records (only for testing)"
-    puts "  log       - print complete log for given DID or log entry hash"
+    puts "  log       - print relevant log for given DID or log entry hash"
+    puts "  logs      - print all available log entries for given DID or log entry hash"
+    puts "  dag       - print graph for given DID"
     puts "  clone     - clone DID to new location"
     puts "  delegate  - add log entry with additional keys for validating signatures of"
     puts "              document or revocation entries"

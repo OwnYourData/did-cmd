@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-OYDIDCMD='../oydid.rb'
-# OYDIDCMD='oydid'
+# OYDIDCMD='../oydid.rb'
+OYDIDCMD='oydid'
 
 # install current version
 sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
@@ -43,6 +43,8 @@ $OYDIDCMD read --w3c-did did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > 
 if ! cmp -s tmp.doc c1/w3c-did.doc ; then
 	echo "converting to W3C DID format failed"
 	exit 1
+else
+	echo "W3C formatting valid"
 fi
 rm tmp.doc
 
@@ -72,6 +74,14 @@ if ! cmp -s tmp.doc c1/pwd2.doc ; then
 	exit 1
 fi
 rm tmp.doc
+
+# test revoking DID
+$OYDIDCMD revoke did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2
+retval=`$OYDIDCMD read did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V`
+if [ "$retval" != "Error: cannot resolve DID" ]; then
+	echo "revoking DID failed"
+	# exit 1
+fi
 $OYDIDCMD delete did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2
 $OYDIDCMD delete 57c9p6AGUzsqGcBb1AuZS5mEDUqDSVfKV2QnuG9HjwKB --doc-pwd pwd1 --rev-pwd pwd2
 
