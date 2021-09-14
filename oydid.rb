@@ -10,7 +10,7 @@ require 'rbnacl'
 require 'dag'
 require 'uri'
 
-LOCATION_PREFIX = ";"
+LOCATION_PREFIX = "@"
 DEFAULT_LOCATION = "https://oydid.ownyourdata.eu"
 
 def oyd_encode(message)
