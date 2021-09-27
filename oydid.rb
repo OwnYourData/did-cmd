@@ -84,13 +84,13 @@ def dag_did(logs, options)
         if el["op"].to_i == 0
             if dag.vertices[i].successors.length == 0
                 terminate_entries += 1
-                terminate_index = i
             end
             terminate_overall += 1
+            terminate_index = i
         end
         i += 1
     end unless logs.nil?
-    if terminate_entries != 1
+    if terminate_entries != 1 && !options[:log_complete]
        if options[:silent].nil? || !options[:silent]
             if terminate_overall > 0
                 puts "Error: cannot resolve DID"
@@ -884,7 +884,11 @@ def w3c_did(did_info, options)
         "controller": "did:oyd:" + did_info["did"],
         "publicKeyBase58": pubRevKey
     }]
-    wd["service"] = [did_info["doc"]["doc"]]
+    if did_info["doc"]["doc"].is_a?(Array)
+        wd["service"] = did_info["doc"]["doc"]
+    else
+        wd["service"] = [did_info["doc"]["doc"]]
+    end
     if options[:silent].nil? || !options[:silent]
         puts wd.to_json
     end
