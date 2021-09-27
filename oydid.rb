@@ -27,6 +27,18 @@ def oyd_hash(message)
     oyd_encode(RbNaCl::Hash.sha256(message))
 end
 
+def add_hash(log)
+    log.map do |item|
+        i = item.dup
+        i.delete("previous")
+        item["entry-hash"] = oyd_hash(item.to_json)
+        if item["op"] == 1
+            item["sub-entry-hash"] = oyd_hash(i.to_json)
+        end
+        item
+    end
+end
+
 def dag_did(logs, options)
     dag = DAG.new
     dag_log = []
@@ -1045,6 +1057,7 @@ opt_parser = OptionParser.new do |opt|
   opt.separator  "OPTIONS"
 
   options[:log_complete] = false
+  options[:show_hash] = false
   opt.on("-l","--location LOCATION","default URL to store/query DID data") do |loc|
     options[:location] = loc
   end
@@ -1053,6 +1066,9 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("--silent") do |s|
     options[:silent] = true
+  end
+  opt.on("--show-hash") do |s|
+    options[:show_hash] = true
   end
   opt.on("--w3c-did") do |w3c|
     options[:w3cdid] = true
@@ -1152,11 +1168,19 @@ when "log", "logs"
         end
         result = HTTParty.get(log_location.to_s + "/log/" + log_hash.to_s)
         if options[:silent].nil? || !options[:silent]
-            puts JSON.parse(result.to_s).to_json
+            result = JSON.parse(result.to_s)
+            if options[:show_hash]
+                result = add_hash(result)
+            end
+            puts result.to_json
         end
     else
         if options[:silent].nil? || !options[:silent]
-            puts result["log"].to_json
+            result = result["log"]
+            if options[:show_hash]
+                result = add_hash(result)
+            end
+            puts result.to_json
         end
     end
 when "dag"
