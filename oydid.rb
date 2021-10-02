@@ -1,10 +1,12 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+require 'multibases'
+require 'multihashes'
+require 'digest'
 require 'securerandom'
 require 'httparty'
 require 'ed25519'
-require 'base58'
 require 'optparse'
 require 'rbnacl'
 require 'dag'
@@ -14,17 +16,15 @@ LOCATION_PREFIX = "@"
 DEFAULT_LOCATION = "https://oydid.ownyourdata.eu"
 
 def oyd_encode(message)
-    # Base58.encode(message.force_encoding('ASCII-8BIT').unpack('H*')[0].to_i(16))
-    Base58.binary_to_base58(message.force_encoding('BINARY'))
+    Multibases.pack("base58btc", message).to_s
 end
 
 def oyd_decode(message)
-    # [Base58.decode(message.force_encoding('ASCII-8BIT')).to_s(16)].pack('H*')
-    Base58.base58_to_binary(message)
+    Multibases.unpack(message).decode.to_s('ASCII-8BIT')
 end
 
 def oyd_hash(message)
-    oyd_encode(RbNaCl::Hash.sha256(message))
+    oyd_encode(Multihashes.encode(Digest::SHA256.digest(message), "sha2-256").unpack('C*'))
 end
 
 def add_hash(log)
@@ -170,7 +170,7 @@ def match_log_did?(log, doc)
     # check if signature in log is correct
     publicKeys = doc["key"]
     pubKey_string = publicKeys.split(":")[0] rescue ""
-    pubKey = Ed25519::VerifyKey.new(Base58.base58_to_binary(pubKey_string))
+    pubKey = Ed25519::VerifyKey.new(oyd_decode(pubKey_string))
     signature = oyd_decode(log["sig"])
     begin
         pubKey.verify(signature, log["doc"])
@@ -189,9 +189,9 @@ def get_key(filename, key_type)
         return nil
     end
     if key_type == "sign"
-        return Ed25519::SigningKey.new(Base58.base58_to_binary(key_encoded))
+        return Ed25519::SigningKey.new(oyd_decode(key_encoded))
     else
-        return Ed25519::VerifyKey.new(Base58.base58_to_binary(key_encoded))
+        return Ed25519::VerifyKey.new(oyd_decode(key_encoded))
     end
 end
 
@@ -437,8 +437,8 @@ def delete_did(did, options)
     end
 
     did_data = {
-        "dockey": Base58.binary_to_base58(privateKey.to_bytes),
-        "revkey": Base58.binary_to_base58(revocationKey.to_bytes)
+        "dockey": oyd_encode(privateKey.to_bytes),
+        "revkey": oyd_encode(revocationKey.to_bytes)
     }
     oydid_url = doc_location.to_s + "/doc/" + did.to_s
     retVal = HTTParty.delete(oydid_url,
@@ -558,7 +558,7 @@ def write_did(content, did, mode, options)
             ts_old = did_info["log"].last["ts"]
             publicKey = privateKey.verify_key
             pubRevoKey = revocationKey.verify_key
-            did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
+            did_key = oyd_encode(publicKey.to_bytes) + ":" + oyd_encode(pubRevoKey.to_bytes)
             subDid = {"doc": did_old_doc, "key": did_key}.to_json
             subDidHash = oyd_hash(subDid)
             signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
@@ -578,7 +578,7 @@ def write_did(content, did, mode, options)
 
     publicKey = privateKey.verify_key
     pubRevoKey = revocationKey.verify_key
-    did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
+    did_key = oyd_encode(publicKey.to_bytes) + ":" + oyd_encode(pubRevoKey.to_bytes)
 
     # build new revocation document
     subDid = {"doc": did_doc, "key": did_key}.to_json
@@ -589,7 +589,7 @@ def write_did(content, did, mode, options)
            "doc": subDidHash,
            "sig": signedSubDidHash }.transform_keys(&:to_s)
     # check if signedSubDidHahs is valid?
-    #   signature = [Base58.decode(signedSubDidHash).to_s(16)].pack('H*')
+    #   signature = [oyd_decode(signedSubDidHash).to_s(16)].pack('H*')
     #   message = subDidHash
     #   pubRevoKey.verify(signature, message)
 
@@ -667,19 +667,19 @@ def write_did(content, did, mode, options)
             exit(1)            
         end
         if options[:doc_pwd].nil? && options[:doc_key].nil?
-            File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
+            File.write(did10 + "_private_key.b58", oyd_encode(privateKey.to_bytes))
         end
         if options[:rev_pwd].nil? && options[:rev_key].nil?
-            File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
+            File.write(did10 + "_revocation_key.b58", oyd_encode(revocationKey.to_bytes))
             File.write(did10 + "_revocation.json", r1.to_json)
         end
     else
         # write files to disk
         if options[:doc_pwd].nil? && options[:doc_key].nil?
-            File.write(did10 + "_private_key.b58", Base58.binary_to_base58(privateKey.to_bytes))
+            File.write(did10 + "_private_key.b58", oyd_encode(privateKey.to_bytes))
         end
         if options[:rev_pwd].nil? && options[:rev_key].nil?
-            File.write(did10 + "_revocation_key.b58", Base58.binary_to_base58(revocationKey.to_bytes))
+            File.write(did10 + "_revocation_key.b58", oyd_encode(revocationKey.to_bytes))
             File.write(did10 + "_revocation.json", r1.to_json)
         end
         File.write(did10 + ".log", [old_log, l1, l2].flatten.compact.to_json)
@@ -768,7 +768,7 @@ def revoke_did(did, options)
         ts_old = did_info["log"].last["ts"]
         publicKey = privateKey.verify_key
         pubRevoKey = revocationKey.verify_key
-        did_key = Base58.binary_to_base58(publicKey.to_bytes) + ":" + Base58.binary_to_base58(pubRevoKey.to_bytes)
+        did_key = oyd_encode(publicKey.to_bytes) + ":" + oyd_encode(pubRevoKey.to_bytes)
         subDid = {"doc": did_old_doc, "key": did_key}.to_json
         subDidHash = oyd_hash(subDid)
         signedSubDidHash = oyd_encode(revocationKey.sign(subDidHash))
@@ -971,7 +971,7 @@ def sc_token(did, options)
 
     # check if provided private key matches pubkey in DID document
     did_info = resolve_did(did, options)
-    if did_info["doc"]["key"].split(":")[0].to_s != Base58.binary_to_base58(privateKey.verify_key.to_bytes)
+    if did_info["doc"]["key"].split(":")[0].to_s != oyd_encode(privateKey.verify_key.to_bytes)
         if options[:silent].nil? || !options[:silent]
             puts "Error: private key does not match DID document"
         end
@@ -985,7 +985,7 @@ def sc_token(did, options)
     response = HTTParty.post(init_url,
         headers: { 'Content-Type' => 'application/json' },
         body: { "session_id": sid, 
-                "public_key": Base58.binary_to_base58(privateKey.verify_key.to_bytes) }.to_json ).parsed_response rescue {}
+                "public_key": oyd_encode(privateKey.verify_key.to_bytes) }.to_json ).parsed_response rescue {}
     if response["challenge"].nil?
         if options[:silent].nil? || !options[:silent]
             puts "Error: invalid container authentication"
@@ -1239,9 +1239,9 @@ else
     puts "  sc_create - create additional DID for specified subset of data and scope"
     puts ""
     puts "options:"
-    puts "  --doc-key   - filename with Base58 encoded private key for signing documents"
+    puts "  --doc-key   - filename with Multibase encoded private key for signing documents"
     puts "  --doc-pwd   - password for private key for signing documents"
-    puts "  --rev-key   - filename with Base58 encoded private key for signing a revocation"
+    puts "  --rev-key   - filename with Multibase encoded private key for signing a revocation"
     puts "  --rev-pwd   - password for private key for signing a revocation"
     puts "  --show-hash - for log output additionally show hash value of each entry"
     puts "  --silent    - suppress any output"

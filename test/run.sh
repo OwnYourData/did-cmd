@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
 
-# OYDIDCMD='../oydid.rb'
-OYDIDCMD='oydid'
+OYDIDCMD='../oydid.rb'
+# OYDIDCMD='oydid'
 
 # install current version
 sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
 
 # clean up
-$OYDIDCMD delete did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2 --silent
-$OYDIDCMD delete 57c9p6AGUzsqGcBb1AuZS5mEDUqDSVfKV2QnuG9HjwKB --doc-pwd pwd1 --rev-pwd pwd2 --silent
-$OYDIDCMD delete "did:oyd:fUozLeLj2xa4rjY9CCUJWe78JFFWCa2Xvkf1aAusHdXE@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
-$OYDIDCMD delete did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
-$OYDIDCMD delete 9Gsid3RsCC24gHF1AkGW5FoHXQ8mbmbk5AW4KTs36ADy --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
-$OYDIDCMD delete "did:oyd:8GLiNWrBP9GS2DaoFSVpgvfnQA5poP61CDxARYnBDyCT@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
+$OYDIDCMD delete did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
+$OYDIDCMD delete zQmZfyr7pGwQPzXbt664MdfmNwyG7CMZErHN724x8tKvBhP --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
+$OYDIDCMD delete did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX --doc-pwd pwd1 --rev-pwd pwd2 --silent
+$OYDIDCMD delete "did:oyd:zQmfEPuXTJ9ANQgLFu96DoTb2n5wvCD1sP9kTRSj929G5Sn@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
+$OYDIDCMD delete "did:oyd:zQmX2Rme63uEj5YCnMR4TBt7GJRwVEqTEPyxk6Zh1CS7Lzk@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
 
 
 # test creating local DID Document
 echo '{"hello": "world"}' | $OYDIDCMD create -l local --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839947
-if ! cmp -s 8b1WCUsn9o.doc c1/did.doc ; then
+if ! cmp -s zQmUNiQciw.doc c1/did.doc ; then
 	echo "creating failed"
 	exit 1
 fi
-rm 8b1*
+rm zQmUNiQciw*
 
 # test creating invalid DID Document
 retval=`echo '{' | $OYDIDCMD create -l local --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58`
@@ -34,12 +33,12 @@ fi
 
 # test creating public DID Document
 echo '{"hello": "world2"}' | $OYDIDCMD create --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839947
-$OYDIDCMD read did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc
-if ! cmp -s tmp.doc c1/8LZMwgahJp.doc ; then
+$OYDIDCMD read did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q > tmp.doc
+if ! cmp -s tmp.doc c1/zQmPoNSNpZ.doc ; then
 	echo "reading from public failed"
 	exit 1
 fi
-$OYDIDCMD read --w3c-did did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc
+$OYDIDCMD read --w3c-did did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q > tmp.doc
 if ! cmp -s tmp.doc c1/w3c-did.doc ; then
 	echo "converting to W3C DID format failed"
 	exit 1
@@ -49,9 +48,9 @@ fi
 rm tmp.doc
 
 # test updating DID Document
-echo '{"hello": "world3"}' | $OYDIDCMD update did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839948
-$OYDIDCMD read did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu > tmp.doc
-if ! cmp -s tmp.doc c1/9Gsid3RsCC.doc ; then
+echo '{"hello": "world3"}' | $OYDIDCMD update did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839948
+$OYDIDCMD read did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q > tmp.doc
+if ! cmp -s tmp.doc c1/zQmZfyr7pGwQP.doc ; then
 	echo "updating public failed"
 	exit 1
 fi
@@ -59,7 +58,7 @@ rm tmp.doc
 
 # test creating public DID Document with password
 echo '{"hello": "world4"}' | $OYDIDCMD create --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839947
-$OYDIDCMD read did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V > tmp.doc
+$OYDIDCMD read did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX > tmp.doc
 if ! cmp -s tmp.doc c1/pwd.doc ; then
 	echo "creating with password failed"
 	exit 1
@@ -67,8 +66,8 @@ fi
 rm tmp.doc
 
 # test updating DID Document with password
-echo '{"hello": "world5"}' | $OYDIDCMD update did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839948
-$OYDIDCMD read did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V > tmp.doc
+echo '{"hello": "world5"}' | $OYDIDCMD update did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839948
+$OYDIDCMD read did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX > tmp.doc
 if ! cmp -s tmp.doc c1/pwd2.doc ; then
 	echo "updating with password failed"
 	exit 1
@@ -76,36 +75,35 @@ fi
 rm tmp.doc
 
 # test revoking DID
-$OYDIDCMD revoke did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2
-retval=`$OYDIDCMD read did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V`
+$OYDIDCMD revoke did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX --doc-pwd pwd1 --rev-pwd pwd2
+retval=`$OYDIDCMD read did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX`
 if [ "$retval" != "Error: cannot resolve DID" ]; then
 	echo "revoking DID failed"
 	# exit 1
 fi
-$OYDIDCMD delete did:oyd:22h3zy8Yi2dtQ6UzQKDa85e5FTA3316gTpPysw7KAS7V --doc-pwd pwd1 --rev-pwd pwd2
-$OYDIDCMD delete 57c9p6AGUzsqGcBb1AuZS5mEDUqDSVfKV2QnuG9HjwKB --doc-pwd pwd1 --rev-pwd pwd2
+$OYDIDCMD delete did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX --doc-pwd pwd1 --rev-pwd pwd2
 
 # test writing to non-default location
 echo '{"hello": "world6"}' | $OYDIDCMD create -l https://did2.data-container.net --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839947
-$OYDIDCMD read "did:oyd:cDNJgo3FHQbBXAiV3VD4LGs9iTCWvEXr5n3v2PgjfxAN@https://did2.data-container.net" > tmp.doc
+$OYDIDCMD read "did:oyd:zQmfEPuXTJ9ANQgLFu96DoTb2n5wvCD1sP9kTRSj929G5Sn@https://did2.data-container.net" > tmp.doc
 if ! cmp -s tmp.doc c1/did2.doc ; then
 	echo "writing to non-default location failed"
 	exit 1
 fi
 rm tmp.doc
-$OYDIDCMD delete "did:oyd:cDNJgo3FHQbBXAiV3VD4LGs9iTCWvEXr5n3v2PgjfxAN@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2
+$OYDIDCMD delete "did:oyd:zQmfEPuXTJ9ANQgLFu96DoTb2n5wvCD1sP9kTRSj929G5Sn@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2
 
 # test clone
-$OYDIDCMD clone did:oyd:9Gsid3RsCC24gHF1AkGW5FoHXQ8mbmbk5AW4KTs36ADy --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839948 -l https://did2.data-container.net
-$OYDIDCMD read "did:oyd:8GLiNWrBP9GS2DaoFSVpgvfnQA5poP61CDxARYnBDyCT@https://did2.data-container.net" > tmp.doc
+$OYDIDCMD clone did:oyd:zQmZfyr7pGwQPzXbt664MdfmNwyG7CMZErHN724x8tKvBhP --doc-pwd pwd1 --rev-pwd pwd2 --ts 1610839948 -l https://did2.data-container.net
+$OYDIDCMD read "did:oyd:zQmX2Rme63uEj5YCnMR4TBt7GJRwVEqTEPyxk6Zh1CS7Lzk@https://did2.data-container.net" > tmp.doc
 if ! cmp -s tmp.doc c1/did_clone.doc ; then
 	echo "cloning failed"
 	exit 1
 fi
 rm tmp.doc
 
-# $OYDIDCMD delete did:oyd:8LZMwgahJpLCUuwVEzY6SqzzpooMETZ3gaQdprZ8bhRu --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58
-# $OYDIDCMD delete 9Gsid3RsCC24gHF1AkGW5FoHXQ8mbmbk5AW4KTs36ADy --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58
-# $OYDIDCMD delete "did:oyd:8GLiNWrBP9GS2DaoFSVpgvfnQA5poP61CDxARYnBDyCT@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 
+# $OYDIDCMD delete did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58
+# $OYDIDCMD delete zQmZfyr7pGwQPzXbt664MdfmNwyG7CMZErHN724x8tKvBhP --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58
+# $OYDIDCMD delete "did:oyd:zQmX2Rme63uEj5YCnMR4TBt7GJRwVEqTEPyxk6Zh1CS7Lzk@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 
 
 echo "tests finished successfully"

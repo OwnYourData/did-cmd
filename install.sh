@@ -19,7 +19,7 @@ chmod +x ~/bin/oydid
 if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
   export PATH="$PATH:$HOME/bin"
   echo "consider adding ~/bin to your PATH"
-  echo "the following libraries and gem need to be installed:"
+  echo "the following libraries and gems need to be installed:"
   echo "$ apt-get install ruby-dev libsodium-dev"
-  echo "$ gem install securerandom httparty ed25519 base58 optparse rbnacl dag uri"
+  echo "$ gem install securerandom httparty ed25519 multibase multihash optparse rbnacl dag uri"
 fi
