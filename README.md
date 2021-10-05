@@ -4,18 +4,30 @@ OYDID (Own Your Digital IDentifier) provides a self-sustained environment for ma
 
 ## Installation
 Run the following command to copy `oydid.rb` into `~/bin/oydid` (requires Ruby 2.5.7 or higher):
-```
+```bash
 sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
 ```
 
-### Example
-create the most simple DID:
+## Run via Docker
+To use the dockerized version of oydid run:
+```bash
+docker run -it --rm oydeu/oydid
 ```
+
+Often it makes sense to keep private keys and revocation information beyond a Docker session:
+
+* create a local directory, e.g., `mkdir ~/.oydid`
+* mount this directory on startup: `docker run -it --rm -v ~/.oydid:/home/oydid oydeu/oydid`
+
+
+## Example
+create the most simple DID:
+```bash
 echo '{"hello":"world"}' | oydid create
 ```
 
 read the information:
-```
+```bash
 oydid read {use output from above did:oyd:...}
 ```
 
