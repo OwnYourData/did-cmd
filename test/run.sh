@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 
-# OYDIDCMD='../oydid.rb'
-OYDIDCMD='oydid'
+OYDIDCMD='../oydid.rb'
+# OYDIDCMD='oydid'
 
 # install current version
-sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
+# sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
 
 # clean up
 $OYDIDCMD delete did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
 $OYDIDCMD delete zQmZfyr7pGwQPzXbt664MdfmNwyG7CMZErHN724x8tKvBhP --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --silent
 $OYDIDCMD delete did:oyd:zQmTyeNTS3p9GrVCut7QUg925aiGKJ8YxpD2LNuk8em69UX --doc-pwd pwd1 --rev-pwd pwd2 --silent
+$OYDIDCMD delete did:oyd:zQmXzfYoMDRkwcSZaXzVGz6XqELaDhwyZCkzjGdcwa9vpVd --doc-pwd pwd1 --rev-pwd pwd2 --silent
 $OYDIDCMD delete "did:oyd:zQmfEPuXTJ9ANQgLFu96DoTb2n5wvCD1sP9kTRSj929G5Sn@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
 $OYDIDCMD delete "did:oyd:zQmX2Rme63uEj5YCnMR4TBt7GJRwVEqTEPyxk6Zh1CS7Lzk@https://did2.data-container.net" --doc-pwd pwd1 --rev-pwd pwd2 --silent
 
@@ -48,7 +49,14 @@ fi
 rm tmp.doc
 
 # test updating DID Document
-echo '{"hello": "world3"}' | $OYDIDCMD update did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839948
+echo '{"hello": "world3"}' | $OYDIDCMD update did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q --json-output --doc-key c1/private_key.b58 --rev-key c1/revocation_key.b58 --ts 1610839948 > tmp.doc
+if ! cmp -s tmp.doc c1/json-did.doc ; then
+	echo "output in JSON format failed"
+	exit 1
+else
+	echo "JSON formatting for update valid"
+fi
+rm tmp.doc
 $OYDIDCMD read did:oyd:zQmPoNSNpZAae4qDsr2amNj6YKfGT1YmKAHzEGbF6VqAq5Q > tmp.doc
 if ! cmp -s tmp.doc c1/zQmZfyr7pGwQP.doc ; then
 	echo "updating public failed"

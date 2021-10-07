@@ -62,15 +62,24 @@ def dag_did(logs, options)
         i += 1
     end unless logs.nil?
 
+
     if create_entries != 1
         if options[:silent].nil? || !options[:silent]
-            puts "Error: wrong number of CREATE entries (" + create_entries.to_s + ") in log"
+            if options[:json].nil? || !options[:json]
+                puts "Error: wrong number of CREATE entries (" + create_entries.to_s + ") in log"
+            else
+                puts '{"error": "wrong number of CREATE entries (' + create_entries.to_s + ') in log"}'
+            end
         end
         exit(1)
     end
     if terminate_indices.length == 0
        if options[:silent].nil? || !options[:silent]
-            puts "Error: missing TERMINATE entries"
+            if options[:json].nil? || !options[:json]
+                puts "Error: missing TERMINATE entries"
+            else
+                puts '{"error": "missing TERMINATE entries"}'
+            end
         end
         exit(1)
     end 
@@ -102,13 +111,22 @@ def dag_did(logs, options)
         end
         i += 1
     end unless logs.nil?
+
     if terminate_entries != 1 && !options[:log_complete]
        if options[:silent].nil? || !options[:silent]
-            if terminate_overall > 0
-                puts "Error: cannot resolve DID"
-            else
-                puts "Error: invalid number of tangling TERMINATE entries (" + terminate_entries.to_s + ")"
-            end
+            # if terminate_overall > 0
+            #     if options[:json].nil? || !options[:json]
+            #         puts "Error: invalid number of tangling TERMINATE entries (" + terminate_entries.to_s + ")"
+            #     else
+            #         puts '{"error": "invalid number of tangling TERMINATE entries (' + terminate_entries.to_s + ')"}'
+            #     end
+            # else
+                if options[:json].nil? || !options[:json]
+                    puts "Error: cannot resolve DID"
+                else
+                    puts '{"error": "cannot resolve DID"}'
+                end
+            # end
         end
         exit(1)
     end 
@@ -224,9 +242,12 @@ def retrieve_document(doc_hash, doc_file, doc_location, options)
     when /^http/
         retVal = HTTParty.get(doc_location + "/doc/" + doc_hash)
         if retVal.code != 200
-            if options[:silent].nil? || !options[:silent]
-                puts "Error: " + retVal.parsed_response("error").to_s rescue 
-                    puts "invalid response from " + doc_location + "/doc/" + doc_hash
+            if options[:json].nil? || !options[:json]
+                puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
+                    puts "Error: invalid response from " + doc_location.to_s + "/doc/" + doc_hash.to_s
+            else
+                puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
+                    puts '{"error": "invalid response from ' + doc_location.to_s + "/doc/" + doc_hash.to_s + '"}'
             end
             exit(1)
         end
@@ -265,8 +286,13 @@ def retrieve_log(did_hash, log_file, log_location, options)
         retVal = HTTParty.get(log_location + "/log/" + did_hash)
         if retVal.code != 200
             if options[:silent].nil? || !options[:silent]
-                puts "Error: " + retVal.parsed_response["error"].to_s rescue 
-                    puts "invalid response from " + log_location + "/log/" + did_hash
+                if options[:json].nil? || !options[:json]
+                    puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
+                        puts "Error: invalid response from " + log_location.to_s + "/log/" + did_hash.to_s
+                else
+                    puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
+                        puts '{"error": "invalid response from ' + log_location.to_s + "/log/" + did_hash.to_s + '"}'
+                end
             end
             exit(1)
         end
@@ -414,7 +440,11 @@ def delete_did(did, options)
     if options[:doc_key].nil?
         if options[:doc_pwd].nil?
             if options[:silent].nil? || !options[:silent]
-                puts "Error: missing document key"
+                if options[:json].nil? || !options[:json]
+                    puts "Error: missing document key"
+                else
+                    puts '{"error": "missing document key"}'
+                end
             end
             exit 1
         else
@@ -426,7 +456,11 @@ def delete_did(did, options)
     if options[:rev_key].nil?
         if options[:rev_pwd].nil?
             if options[:silent].nil? || !options[:silent]
-                puts "Error: missing revocation key"
+                if options[:json].nil? || !options[:json]
+                    puts "Error: missing revocation key"
+                else
+                    puts '{"error": "missing revocation key"}'
+                end
             end
             exit 1
         else
@@ -446,8 +480,13 @@ def delete_did(did, options)
         body: did_data.to_json )
     if retVal.code != 200
         if options[:silent].nil? || !options[:silent]
-            puts "Error: " + retVal.parsed_response["error"].to_s rescue 
-                puts "invalid response from " + oydid_url
+            if options[:json].nil? || !options[:json]
+                puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
+                    puts "Error: invalid response from " + oydid_url.to_s
+            else
+                puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
+                    puts '{"error": "invalid response from ' + oydid_url.to_s + '"}'
+            end
         end
         exit 1
     end
@@ -458,7 +497,11 @@ def write_did(content, did, mode, options)
     did_doc = JSON.parse(content.join("")) rescue {}
     if did_doc == {}
         if options[:silent].nil? || !options[:silent]
-            puts "Error: empty or invalid payload"
+            if options[:json].nil? || !options[:json]
+                puts "Error: empty or invalid payload"
+            else
+                puts '{"error": "empty or invalid payload"}'
+            end
         end
         exit 1
     end        
@@ -485,7 +528,11 @@ def write_did(content, did, mode, options)
             privateKey = get_key(options[:doc_key].to_s, "sign")
             if privateKey.nil?
                 if options[:silent].nil? || !options[:silent]
-                    puts "Error: private key not found"
+                    if options[:json].nil? || !options[:json]
+                        puts "Error: private key not found"
+                    else
+                        puts '{"error": "private key not found"}'
+                    end
                 end
                 exit 1
             end
@@ -500,7 +547,11 @@ def write_did(content, did, mode, options)
             revocationKey = get_key(options[:rev_key].to_s, "sign")
             if privateKey.nil?
                 if options[:silent].nil? || !options[:silent]
-                    puts "Error: revocation key not found"
+                    if options[:json].nil? || !options[:json]
+                        puts "Error: private revocation not found"
+                    else
+                        puts '{"error": "revocation key not found"}'
+                    end
                 end
                 exit 1
             end
@@ -509,13 +560,21 @@ def write_did(content, did, mode, options)
         did_info = resolve_did(did, options)
         if did_info.nil?
             if options[:silent].nil? || !options[:silent]
-                puts "Error: cannot resolve DID"
+                if options[:json].nil? || !options[:json]
+                    puts "Error: cannot resolve DID (on updating DID)"
+                else
+                    puts '{"error": "cannot resolve DID (on updating DID)"}'
+                end
             end
             exit (-1)
         end
         if did_info["error"] != 0
             if options[:silent].nil? || !options[:silent]
-                puts "Error: " + did_info["message"]
+                if options[:json].nil? || !options[:json]
+                    puts "Error: " + did_info["message"].to_s
+                else
+                    puts '{"error": "' + did_info["message"].to_s + '"}'
+                end
             end
             exit(1)
         end
@@ -660,9 +719,12 @@ def write_did(content, did, mode, options)
             headers: { 'Content-Type' => 'application/json' },
             body: did_data.to_json )
         if retVal.code != 200
-            if options[:silent].nil? || !options[:silent]
-                puts "Error: " + retVal.parsed_response['error'].to_s rescue 
-                    puts "invalid response from " + doc_location + "/doc/" + doc_hash
+            if options[:json].nil? || !options[:json]
+                puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
+                    puts "Error: invalid response from " + doc_location.to_s + "/doc/" + doc_hash.to_s
+            else
+                puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
+                    puts '{"error": "invalid response from ' + doc_location.to_s + "/doc/" + doc_hash.to_s + '"}'
             end
             exit(1)            
         end
@@ -692,13 +754,24 @@ def write_did(content, did, mode, options)
 
     if options[:silent].nil? || !options[:silent]
         # write DID to stdout
-        case mode
-        when "create"
-            puts "created " + did
-        when "clone"
-            puts "cloned " + did
-        when "update"
-            puts "updated " + did
+        if options[:json].nil? || !options[:json]
+            case mode
+            when "create"
+                puts "created " + did
+            when "clone"
+                puts "cloned " + did
+            when "update"
+                puts "updated " + did
+            end
+        else
+            case mode
+            when "create"
+                puts '{"did": "did:oyd:"' + did.to_s + '", "operation": "create"}'
+            when "clone"
+                puts '{"did": "did:oyd:"' + did.to_s + '", "operation": "clone"}'
+            when "update"
+                puts '{"did": "did:oyd:"' + did.to_s + '", "operation": "update"}'
+            end
         end
     end
     did
@@ -714,13 +787,21 @@ def revoke_did(did, options)
     did_info = resolve_did(did, options)
     if did_info.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot resolve DID"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot resolve DID (on revoking DID)"
+            else
+                puts '{"error": "cannot resolve DID (on revoking DID)"}'
+            end
         end
         exit (-1)
     end
     if did_info["error"] != 0
         if options[:silent].nil? || !options[:silent]
-            puts "Error: " + did_info["message"]
+            if options[:json].nil? || !options[:json]
+                puts "Error: " + did_info["message"].to_s
+            else
+                puts '{"error": "' + did_info["message"].to_s + '"}'
+            end
         end
         exit(1)
     end
@@ -750,7 +831,11 @@ def revoke_did(did, options)
     end
     if privateKey.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: private key not found"
+            if options[:json].nil? || !options[:json]
+                puts "Error: private key not found"
+            else
+                puts '{"error": "private key not found"}'
+            end
         end
         exit(1)
     end
@@ -781,7 +866,11 @@ def revoke_did(did, options)
 
     if revocationLog.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: private revocation key not found"
+            if options[:json].nil? || !options[:json]
+                puts "Error: private revocation key not found"
+            else
+                puts '{"error": "private revocation key not found"}'
+            end
         end
         exit(1)
     end
@@ -804,8 +893,13 @@ def revoke_did(did, options)
             body: {"log": revoc_log}.to_json )
         if retVal.code != 200
             if options[:silent].nil? || !options[:silent]
-                puts "Error: " + retVal.parsed_response['error'].to_s rescue 
-                    puts "invalid response from " + doc_location + "/log/" + did
+                if options[:json].nil? || !options[:json]
+                    puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
+                        puts "Error: invalid response from " + doc_location.to_s + "/log/" + did.to_s
+                else
+                    puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
+                        puts '{"error": "invalid response from ' + doc_location.to_s + "/log/" + did.to_s + '"}'
+                end
             end
             exit(1)
         end
@@ -815,7 +909,11 @@ def revoke_did(did, options)
 
     if options[:silent].nil? || !options[:silent]
         # write operations to stdout
-        puts "revoked did:oyd:" + did
+        if options[:json].nil? || !options[:json]
+            puts "revoked did:oyd:" + did
+        else
+            puts '{"did": "did:oyd:"' + did.to_s + '", "operation": "revoke"}'
+        end
     end
     did
 
@@ -837,7 +935,11 @@ def clone_did(did, options)
     end
     if target_location == source_location
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot clone to same location (" + target_location.to_s + ")"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot clone to same location (" + target_location.to_s + ")"
+            else
+                puts '{"error":"Error: cannot clone to same location (' + target_location.to_s + ')"}'
+            end
         end
         exit 1
     end
@@ -849,19 +951,31 @@ def clone_did(did, options)
 
     if source_did.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot resolve DID"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot resolve DID (on cloning DID)"
+            else
+                puts '{"error": "cannot resolve DID (on cloning DID)"}'
+            end
         end
         exit (-1)
     end
     if source_did["error"] != 0
         if options[:silent].nil? || !options[:silent]
-            puts "Error: " + source_did["message"].to_s
+            if options[:json].nil? || !options[:json]
+                puts "Error: " + source_did["message"].to_s
+            else
+                puts '{"error": "' + source_did["message"].to_s + '"}'
+            end
         end
         exit(-1)
     end
     if source_did["doc_log_id"].nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot parse DID log"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot parse DID log"
+            else
+                puts '{"error": "cannot parse DID log"}'
+            end
         end
         exit(-1)
     end        
@@ -949,7 +1063,11 @@ def sc_token(did, options)
     if options[:doc_key].nil?
         if options[:doc_pwd].nil?
             if options[:silent].nil? || !options[:silent]
-                puts "Error: missing private key"
+                if options[:json].nil? || !options[:json]
+                    puts "Error: private key not found"
+                else
+                    puts '{"error": "private key not found"}'
+                end
             end
             exit 1
         else
@@ -959,7 +1077,11 @@ def sc_token(did, options)
         privateKey = get_key(options[:doc_key].to_s, "sign")
         if privateKey.nil?
             if options[:silent].nil? || !options[:silent]
-                puts "Error: private key not found"
+                if options[:json].nil? || !options[:json]
+                    puts "Error: private key not found"
+                else
+                    puts '{"error": "private key not found"}'
+                end
             end
             exit 1
         end
@@ -974,6 +1096,11 @@ def sc_token(did, options)
     if did_info["doc"]["key"].split(":")[0].to_s != oyd_encode(privateKey.verify_key.to_bytes)
         if options[:silent].nil? || !options[:silent]
             puts "Error: private key does not match DID document"
+            if options[:json].nil? || !options[:json]
+                puts "Error: private key does not match DID document"
+            else
+                puts '{"error": "private key does not match DID document"}'
+            end
         end
         exit 1
     end
@@ -988,7 +1115,11 @@ def sc_token(did, options)
                 "public_key": oyd_encode(privateKey.verify_key.to_bytes) }.to_json ).parsed_response rescue {}
     if response["challenge"].nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: invalid container authentication"
+            if options[:json].nil? || !options[:json]
+                puts "Error: invalid container authentication"
+            else
+                puts '{"error": "invalid container authentication"}'
+            end
         end
         exit 1
     end
@@ -1008,11 +1139,19 @@ def sc_create(content, did, options)
     # validation
     c = JSON.parse(content.join("")) rescue {}
     if c["service_endpoint"].nil?
-        puts "Error: missing service endpoint"
+        if options[:json].nil? || !options[:json]
+            puts "Error: missing service endpoint"
+        else
+            puts '{"error": "missing service endpoint"}'
+        end
         exit 1
     end
     if c["scope"].nil?
-        puts "Error: missing scope"
+        if options[:json].nil? || !options[:json]
+            puts "Error: missing scope"
+        else
+            puts '{"error": "missing scope"}'
+        end
         exit 1
     end
 
@@ -1048,6 +1187,59 @@ def sc_create(content, did, options)
 
 end
 
+def print_help()
+    puts "Usage: oydid [OPERATION] [OPTION]"
+    puts "manage DIDs using the oyd:did method"
+    puts ""
+    puts "OPERATION"
+    puts "  create    - new DID, reads doc from STDIN"
+    puts "  read      - output DID Document for given DID in option"
+    puts "  update    - update DID Document, reads doc from STDIN and DID specified"
+    puts "              as option"
+    puts "  revoke    - revoke DID by publishing revocation entry"
+    puts "  delete    - remove DID and all associated records (only for testing)"
+    puts "  log       - print relevant log for given DID or log entry hash"
+    puts "  logs      - print all available log entries for given DID or log hash"
+    puts "  dag       - print graph for given DID"
+    puts "  clone     - clone DID to new location"
+    puts "  delegate  - add log entry with additional keys for validating signatures"
+    puts "              of document or revocation entries"
+    puts "  challenge - publish challenge for given DID and revoke specified as"
+    puts "              options"
+    puts "  confirm   - confirm specified clones or delegates for given DID"
+    puts ""
+    puts "Semantic Container operations:"
+    puts "  sc_init   - create initial DID for a Semantic Container "
+    puts "              (requires TOKEN with admin scope)"
+    puts "  sc_token  - retrieve OAuth2 bearer token using DID Auth"
+    puts "  sc_create - create additional DID for specified subset of data and"
+    puts "              scope"
+    puts ""
+    puts "OPTIONS"
+    puts "     --doc-key DOCUMENT-KEY        - filename with Multibase encoded "
+    puts "                                     private key for signing documents"
+    puts "     --doc-pwd DOCUMENT-PASSWORD   - password for private key for "
+    puts "                                     signing documents"
+    puts " -h, --help                        - dispay this help text"
+    puts "     --json-output                 - write response as JSON object"
+    puts " -l, --location LOCATION           - default URL to store/query DID data"
+    puts "     --rev-key REVOCATION-KEY      - filename with Multibase encoded "
+    puts "                                     private key for signing a revocation"
+    puts "     --rev-pwd REVOCATION-PASSWORD - password for private key for signing"
+    puts "                                     a revocation"
+    puts "     --show-hash                   - for log operation: additionally show"
+    puts "                                     hash value of each entry"
+    puts "     --silent                      - suppress any output"
+    puts "     --timestamp TIMESTAMP         - timestamp in UNIX epoch to be used"
+    puts "                                     (only for testing)"
+    puts " -t, --token TOKEN                 - OAuth2 bearer token to access "
+    puts "                                     Semantic Container"
+    puts "     --trace                       - display trace/debug information when"
+    puts "                                     processing request"
+    puts "     --w3c-did                     - display DID Document in W3C conform"
+    puts "                                     format"
+end
+
 # commandline options
 options = { }
 opt_parser = OptionParser.new do |opt|
@@ -1073,6 +1265,9 @@ opt_parser = OptionParser.new do |opt|
   opt.on("--w3c-did") do |w3c|
     options[:w3cdid] = true
   end
+  opt.on("--json-output") do |j|
+    options[:json] = true
+  end
   opt.on("--doc-key DOCUMENT-KEY") do |dk|
     options[:doc_key] = dk
   end
@@ -1090,6 +1285,10 @@ opt_parser = OptionParser.new do |opt|
   end
   opt.on("--ts TIMESTAMP") do |ts|
     options[:ts] = ts.to_i
+  end
+  opt.on("-h", "--help") do |h|
+    print_help()
+    exit(0)
   end
 end
 opt_parser.parse!
@@ -1120,13 +1319,21 @@ when "read"
     result = resolve_did(input_did, options)
     if result.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot resolve DID"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot resolve DID (on reading DID)"
+            else
+                puts '{"error": "cannot resolve DID (on reading DID)"}'
+            end
         end
         exit (-1)
     end
     if result["error"] != 0
         if options[:silent].nil? || !options[:silent]
-            puts "Error: " + result["message"].to_s
+            if options[:json].nil? || !options[:json]
+                puts "Error: " + result["message"].to_s
+            else
+                puts '{"error": "' + result["message"].to_s + '"}'
+            end
         end
         exit(-1)
     end
@@ -1143,7 +1350,11 @@ when "clone"
     result = clone_did(input_did, options)
     if result.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot resolve DID"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot resolve DID (after cloning DID)"
+            else
+                puts '{"error": "cannot resolve DID (after cloning DID)"}'
+            end
         end
         exit (-1)
     end
@@ -1188,13 +1399,21 @@ when "dag"
     result = resolve_did(input_did, options)
     if result.nil?
         if options[:silent].nil? || !options[:silent]
-            puts "Error: cannot resolve DID"
+            if options[:json].nil? || !options[:json]
+                puts "Error: cannot resolve DID (on writing DAG)"
+            else
+                puts '{"error": "cannot resolve DID (on writing DAG)"}'
+            end
         end
         exit (-1)
     end
     if result["error"] != 0
         if options[:silent].nil? || !options[:silent]
-            puts "Error: " + result["message"].to_s
+            if options[:json].nil? || !options[:json]
+                puts "Error: " + result["message"].to_s
+            else
+                puts '{"error": "' + result["message"].to_s + '"}'
+            end
         end
         exit(-1)
     end
@@ -1213,39 +1432,11 @@ when "sc_create"
     sc_create(content, input_did, options)
 
 when "delegate", "challenge", "confirm"
-    puts "Warning: function not yet available"
+    if options[:json].nil? || !options[:json]
+        puts "Error: function not yet available"
+    else
+        puts '{"error": "function not yet available"}'
+    end
 else
-    puts "Usage: oydid [OPERATION] [OPTION]"
-    puts "manage DIDs using the oyd:did method"
-    puts ""
-    puts "operations:"
-    puts "  create    - new DID, reads doc from STDIN"
-    puts "  read      - output DID Document for given DID in option"
-    puts "  update    - update DID Document, reads doc from STDIN and DID specified as option"
-    puts "  revoke    - revoke DID by publishing revocation entry"
-    puts "  delete    - remove DID and all associated records (only for testing)"
-    puts "  log       - print relevant log for given DID or log entry hash"
-    puts "  logs      - print all available log entries for given DID or log entry hash"
-    puts "  dag       - print graph for given DID"
-    puts "  clone     - clone DID to new location"
-    puts "  delegate  - add log entry with additional keys for validating signatures of"
-    puts "              document or revocation entries"
-    puts "  challenge - publish challenge for given DID and revoke specified as options"
-    puts "  confirm   - confirm specified clones or delegates for given DID"
-    puts ""
-    puts "Semantic Container operations:"
-    puts "  sc_init   - create initial DID for a Semantic Container (requires TOKEN with admin scope)"
-    puts "  sc_token  - retrieve OAuth2 bearer token using DID Auth"
-    puts "  sc_create - create additional DID for specified subset of data and scope"
-    puts ""
-    puts "options:"
-    puts "  --doc-key   - filename with Multibase encoded private key for signing documents"
-    puts "  --doc-pwd   - password for private key for signing documents"
-    puts "  --rev-key   - filename with Multibase encoded private key for signing a revocation"
-    puts "  --rev-pwd   - password for private key for signing a revocation"
-    puts "  --show-hash - for log output additionally show hash value of each entry"
-    puts "  --silent    - suppress any output"
-    puts "  --timestamp - timestamp to be used (only for testing)"
-    puts "  --token     - OAuth2 bearer token to access Semantic Container"
-    puts "  --w3c-did   - display DID Document in W3C compatible format"
+    print_help()
 end
