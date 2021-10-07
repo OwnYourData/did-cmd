@@ -452,6 +452,16 @@ def delete_did(did, options)
         end
     else
         privateKey = get_key(options[:doc_key].to_s, "sign")
+        if privateKey.nil?
+            if options[:silent].nil? || !options[:silent]
+                if options[:json].nil? || !options[:json]
+                    puts "Error: missing document key"
+                else
+                    puts '{"error": "missing document key"}'
+                end
+            end
+            exit 1
+        end        
     end
     if options[:rev_key].nil?
         if options[:rev_pwd].nil?
@@ -468,6 +478,16 @@ def delete_did(did, options)
         end
     else
         revocationKey = get_key(options[:rev_key].to_s, "sign")
+        if revocationKey.nil?
+            if options[:silent].nil? || !options[:silent]
+                if options[:json].nil? || !options[:json]
+                    puts "Error: missing revocation key"
+                else
+                    puts '{"error": "missing revocation key"}'
+                end
+            end
+            exit 1
+        end
     end
 
     did_data = {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-OYDIDCMD='../oydid.rb'
-# OYDIDCMD='oydid'
+# OYDIDCMD='../oydid.rb'
+OYDIDCMD='oydid'
 
 # install current version
 # sh -c "curl -fsSL https://raw.githubusercontent.com/OwnYourData/did-cmd/main/install.sh | sh"
