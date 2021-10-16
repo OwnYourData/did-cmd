@@ -411,7 +411,7 @@ def resolve_did(did, options)
     if options[:trace]
         if options[:silent].nil? || !options[:silent]
             dag.edges.each do |e|
-                puts "    edge " + e.origin[:id].to_s + " -> " + e.destination[:id].to_s
+                puts "    edge " + e.origin[:id].to_s + " <- " + e.destination[:id].to_s
             end
         end
     end
