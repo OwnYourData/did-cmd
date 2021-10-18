@@ -299,20 +299,62 @@ docker run -it --rm oydeu/oydid
 	oydid logs zQmTbKdyF3661TB92683hiqEBzo44eNJU8HNDwt4hAt69K1
 	```
 
-Note: read in the OYDID White Paper Appendix A for a step-by-step tutorial
+Note: read in the [OYDID White Paper](https://github.com/OwnYourData/did-cmd/blob/main/docs/OYDIDintro.pdf) Appendix A for a step-by-step tutorial
 
 
 ## 5.	Security and Privacy Considerations
 
-text
+There are a number of security and privacy considerations that implementers will want to take into consideration upon working with this specification.
+
+**Centralized Storage**
+
+* maintainer of OYDID repository cannot change content due to hash values
+* the problem of a repository being unavailable can be mitigated by cloning DID to a local repository
+* the problem of a storage provider hindering publication of updates can be also mitigated by cloning DID to other repositories and publishing updates using initial private keys there
+
+**Key Rotation**
+
+Key Rotation is supported through using different key(s) when publishing an update.
+
+**Scaling**
+
+To scale access for frequently requested DID it is recommended to clone a DID to multiple locations.
+
+**Updating Clones**
+
+* it is in the interest of the DID author to provide consistent information
+* recommended approach    
+    * create new DID (but do not publish revocation log record for old DID yet)
+    * clone new DID to all relevant hosts
+    * only then publish revocation log
+
+**Long-term Usage**
+
+* Multiformat used to ensure digest agility    
+* it is in the nature of centralized systems that they are offline and DID maintainerd need to ensure that a minimum number of clones are always online (based on how valuable the DID is)
+
+**Correlation**
+
+The source for generating OYDID identifiers are hashing algorithms which have as intrinsic property as much entropy as possible and therefore offer no direct means of correlation.
+
 
 ## 6.	Ethical Aspects
 
-text
+DIDs provide a standardization to share specific information (public keys, service endpoints) publicly. However, storing this information on a distributed ledger requires resources (storage and processing capacities) that may seem unjustified for certain use cases where the immediate benefit is not obvious. As a result, in some cases the DID concept is already excluded in the design phase, which hinders adoption and further growth of using DIDs and Verifiable Credentials. Another challenge for DIDs can be privacy-preserving data exchanges and the simple fact of resolving a DID at a public ledger might allow it to infer certain information.
+
+Therefore, OYDID takes the approach to not maintain DID and DID Document on a public ledger but on one or more local storages (that usually are publicly available). Through cryptographically linking the DID identifier to the DID Document, and furthermore linking the DID Document to a chained provenance trail (log), the same security and validation properties as a traditional DID are  maintained while avoiding highly redundant storage and general public access.
+
+OYDIDs are therefore excellently suited for local settings with a limited number of stakeholders interested in resolving those DIDs. Example use cases are:
+
+* test runs that require to create repeatedly a large number of new DIDs
+* settings in secured or remote areas without access to the internet
+* (transient) storage solutions (e.g., Semantic Containers) that can generate large quantities of DIDs as a way to access specific information (e.g., consent receipts, provenance artefacts, delegation to read certain database queries)
+
 
 ## 7.	Reference Implementation
 
-text
+Work in progress as part of a research project funded by the “IKT der Zukunft” program from the Federal Ministry for Transport, Innovation and Technology in Austria – [FFG Projekt 887052](https://projekte.ffg.at/projekt/4125456). 
+
 
 ## 8.	Resources
 
