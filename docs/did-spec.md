@@ -68,8 +68,8 @@ sub-doc-hash                  = MULTIHASH ( hash-identifier sub-doc )
 sub-doc                       = "{doc:" payload ",key:" key-value "}"
 sig-sub-doc-encoded           = MULTIBASE ( base-identifier sig-sub-doc )
 sig-sub-doc                   = <sign sub-doc-encoded with private key from Ed25519 key-pair used for payload>
-base-identifier               = default: base58btc
-hash-identifier               = default: sha2-256
+base-identifier               = DEFAULT base58btc
+hash-identifier               = DEFAULT sha2-256
 ```
 
 <em>Figure 1</em> provides an overview of the OYDID artefacts and depicts the steps to calculate the DID Identifier.
