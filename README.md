@@ -32,11 +32,13 @@ oydid read {use output from above did:oyd:...}
 ```
 
 ## Further Resources
-Read about the concept and find examples in this document: [OYDIDintro.pdf](https://github.com/OwnYourData/did-cmd/blob/main/docs/OYDIDintro.pdf)    
+Read about the concept and examples: [OYDIDintro.pdf](https://github.com/OwnYourData/did-cmd/blob/main/docs/OYDIDintro.pdf)    
 W3C conform DID Method Specification: https://github.com/OwnYourData/did-cmd/blob/main/docs/did-spec.md    
 `oydid` commandline tool in a Docker image: https://hub.docker.com/repository/docker/oydeu/oydid     
 To host DIDs yourself you can use the `oydid/did-base` image on Dockerhub: https://hub.docker.com/r/oydid/did-base    
 API documentation is available here: https://api-docs.ownyourdata.eu/oydid/    
+Universal Resolver driver: https://github.com/OwnYourData/did-cmd/tree/main/resolver    
+
 
 &nbsp;    
 

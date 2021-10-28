@@ -22,7 +22,20 @@ class DidsController < ApplicationController
             return
         end
 
-        render plain: w3c_did(result).to_json,
+        retVal = {
+            "didResolutionMetadata":{},
+            "didDocument": w3c_did(result),
+            "didDocumentMetadata": {
+                "did": result["did"].to_s,
+                "registry": get_location(result["did"].to_s),
+                "log_hash": result["doc"]["log"].to_s,
+                "log": result["log"],
+                "document_log_id": result["doc_log_id"].to_i,
+                "termination_log_id": result["termination_log_id"].to_i
+            }
+        }
+
+        render plain: retVal.to_json,
                mime_type: Mime::Type.lookup("application/ld+json"),
                content_type: 'application/ld+json',
                status: 200
