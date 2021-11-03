@@ -741,10 +741,10 @@ def write_did(content, did, mode, options)
         if retVal.code != 200
             if options[:json].nil? || !options[:json]
                 puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
-                    puts "Error: invalid response from " + doc_location.to_s + "/doc/" + doc_hash.to_s
+                    puts "Error: invalid response from " + doc_location.to_s + "/doc"
             else
                 puts '{"error": "' + retVal.parsed_response['error'].to_s + '", "source": "registry"}' rescue
-                    puts '{"error": "invalid response from ' + doc_location.to_s + "/doc/" + doc_hash.to_s + '"}'
+                    puts '{"error": "invalid response from ' + doc_location.to_s + "/doc" + '"}'
             end
             exit(1)            
         end

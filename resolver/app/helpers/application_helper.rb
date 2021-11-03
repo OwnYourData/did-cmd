@@ -225,7 +225,13 @@ module ApplicationHelper
 
         case doc_location
         when /^http/
-            retVal = HTTParty.get(doc_location + "/doc/" + doc_hash)
+            if doc_location.start_with?('https://') || doc_location.start_with?('http://')
+                retVal = HTTParty.get(doc_location + "/doc/" + doc_hash)
+            elsif doc_location.start_with?('https:/') || doc_location.start_with?('http:/')
+                retVal = HTTParty.get(doc_location.sub(":/", "://") + "/doc/" + doc_hash)
+            else
+                retVal = HTTParty.get(doc_location + "/doc/" + doc_hash)
+            end
             if retVal.code != 200
                 if options[:json].nil? || !options[:json]
                     puts "Registry Error: " + retVal.parsed_response("error").to_s rescue 
